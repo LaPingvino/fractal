@@ -14,6 +14,10 @@ variables:
   # We currently don't have any tests, remove "RUN_TESTS" to run tests
   RUN_TESTS: "0"
   BUNDLE: "${APP_ID}.flatpak"
+  # Pinned because the current version of pipewire in the runtime is not compiling for libspa-sys
+  # The runtime needs to ship with at least pipewire 0.3.76
+  # See: https://gitlab.gnome.org/GNOME/gnome-build-meta/-/issues/702
+  GNOME_RUNTIME_MASTER: "quay.io/gnome_infrastructure/gnome-runtime-images@sha256:29af4e89edb6942e3c86dc2933c1e61360d18b4d3d079980f2fc3eaf433cfec7"
 
 .vars_nightly:
   variables:
@@ -40,7 +44,7 @@ checks:
 # Lint the code
 cargo-clippy:
   stage: check
-  image: 'quay.io/gnome_infrastructure/gnome-runtime-images:gnome-master'
+  image: $GNOME_RUNTIME_MASTER
   extends:
     - .vars_hack
   tags:
@@ -52,12 +56,14 @@ cargo-clippy:
 # Build a debug version of the flatpak
 # Except on main
 build-hack@x86_64:
+  image: $GNOME_RUNTIME_MASTER
   extends:
     - .flatpak@x86_64
     - .vars_hack
   stage: build
 
 build-hack@aarch64:
+  image: $GNOME_RUNTIME_MASTER
   extends:
     - .flatpak@aarch64
     - .vars_hack
@@ -66,12 +72,14 @@ build-hack@aarch64:
 # Build the nightly version of the flatpak
 # Only on main
 build@x86_64:
+  image: $GNOME_RUNTIME_MASTER
   extends:
     - .flatpak@x86_64
     - .vars_nightly
   stage: build
 
 build@aarch64:
+  image: $GNOME_RUNTIME_MASTER
   extends:
     - .flatpak@aarch64
     - .vars_nightly
@@ -80,7 +88,7 @@ build@aarch64:
 # Build the docs
 # Only on main
 pages:
-  image: 'quay.io/gnome_infrastructure/gnome-runtime-images:gnome-master'
+  image: $GNOME_RUNTIME_MASTER
   extends: .vars_nightly
   stage: doc
   tags:
@@ -119,7 +127,7 @@ publish_nightly@aarch64:
 
 release-tarball:
   stage: release
-  image: 'quay.io/gnome_infrastructure/gnome-runtime-images:gnome-master'
+  image: $GNOME_RUNTIME_MASTER
   extends:
     - .vars_release
   tags:
