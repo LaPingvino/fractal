@@ -27,7 +27,6 @@
             </layout>
             <child>
               <object class="GtkLabel" id="display_name">
-                <property name="hexpand">true</property>
                 <property name="halign">start</property>
                 <property name="ellipsize">end</property>
                 <property name="selectable">True</property>
@@ -39,6 +38,7 @@
             </child>
             <child>
               <object class="GtkLabel" id="timestamp">
+                <property name="yalign">0.75</property>
                 <style>
                   <class name="caption"/>
                   <class name="timestamp"/>
@@ -81,7 +81,8 @@
         </child>
         <child>
           <object class="ContentReadReceiptsList" id="read_receipts">
-            <binding name="visible">
+            <property name="valign">end</property>
+            <binding name="can-target">
               <lookup name="has-read-receipts" type="RoomEvent">
                 <lookup name="event">ContentMessageRow</lookup>
               </lookup>
@@ -94,9 +95,9 @@
               </lookup>
             </binding>
             <layout>
-              <property name="column">1</property>
-              <property name="row">3</property>
-              <property name="column-span">2</property>
+              <property name="column">3</property>
+              <property name="row">2</property>
+              <property name="column-span">3</property>
             </layout>
           </object>
         </child>
