@@ -30,8 +30,8 @@ pub use self::{
     session::{Session, SessionState},
     session_settings::{SessionSettings, StoredSessionSettings},
     sidebar_data::{
-        Category, CategoryType, ItemList, Selection, SidebarIconItem, SidebarIconItemType,
-        SidebarItem, SidebarItemImpl, SidebarListModel,
+        Category, CategorySortCriteria, CategoryType, ItemList, Selection, SidebarIconItem,
+        SidebarIconItemType, SidebarItem, SidebarItemImpl, SidebarListModel,
     },
     user::{User, UserExt},
     user_sessions_list::{UserSession, UserSessionsList},

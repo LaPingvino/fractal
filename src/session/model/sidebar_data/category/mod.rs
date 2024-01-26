@@ -16,6 +16,27 @@ use crate::{
     utils::ExpressionListModel,
 };
 
+#[derive(Debug, Default, Hash, Eq, PartialEq, Clone, Copy, glib::Enum)]
+#[repr(u32)]
+#[enum_type(name = "CategorySortCriteria")]
+pub enum CategorySortCriteria {
+    #[default]
+    LastMessage = 0,
+    Name = 1,
+}
+
+impl TryFrom<&str> for CategorySortCriteria {
+    type Error = &'static str;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "last-message" => Ok(CategorySortCriteria::LastMessage),
+            "name" => Ok(CategorySortCriteria::Name),
+            _ => Err("Unexpected CategorySortCriteria"),
+        }
+    }
+}
+
 mod imp {
     use std::{
         cell::{Cell, OnceCell},
@@ -32,9 +53,13 @@ mod imp {
         pub model: OnceCell<gio::ListModel>,
         /// The filter of this category.
         pub filter: CategoryFilter,
+        pub sort_model: gtk::SortListModel,
+        pub filter_model: gtk::FilterListModel,
         /// The type of this category.
         #[property(get = Self::category_type, set = Self::set_category_type, construct_only, builder(CategoryType::default()))]
         pub category_type: PhantomData<CategoryType>,
+        #[property(get, set = Self::set_sort_criteria, builder(CategorySortCriteria::default()))]
+        pub sort_criteria: Cell<CategorySortCriteria>,
         /// Whether this category is empty.
         #[property(get)]
         pub empty: Cell<bool>,
@@ -113,24 +138,12 @@ mod imp {
                 category_type_expr_model.set_expressions(vec![room_category_type.upcast()]);
                 category_type_expr_model.set_model(Some(model));
 
-                let filter_model = gtk::FilterListModel::new(
-                    Some(category_type_expr_model),
-                    Some(self.filter.clone()),
-                );
+                self.filter_model.set_model(Some(&category_type_expr_model));
+                self.filter_model.set_filter(Some(&self.filter));
 
-                let room_latest_activity = Room::this_expression("latest-activity");
-                let sorter = gtk::NumericSorter::builder()
-                    .expression(&room_latest_activity)
-                    .sort_order(gtk::SortType::Descending)
-                    .build();
+                // The rest will be set in update_sorter()
 
-                let latest_activity_expr_model = ExpressionListModel::new();
-                latest_activity_expr_model.set_expressions(vec![room_latest_activity.upcast()]);
-                latest_activity_expr_model.set_model(Some(filter_model.upcast()));
-
-                let sort_model =
-                    gtk::SortListModel::new(Some(latest_activity_expr_model), Some(sorter));
-                sort_model.upcast()
+                self.sort_model.clone().upcast()
             } else {
                 model
             };
@@ -142,6 +155,37 @@ mod imp {
 
             self.set_empty(model.n_items() == 0);
             self.model.set(model).unwrap();
+            self.update_sorter();
+        }
+
+        fn update_sorter(&self) {
+            match self.sort_criteria.get() {
+                CategorySortCriteria::LastMessage => {
+                    let room_latest_activity = Room::this_expression("latest-activity");
+                    let sorter = gtk::NumericSorter::builder()
+                        .expression(&room_latest_activity)
+                        .sort_order(gtk::SortType::Descending)
+                        .build();
+
+                    let latest_activity_expr_model = ExpressionListModel::new();
+                    latest_activity_expr_model.set_expressions(vec![room_latest_activity.upcast()]);
+                    latest_activity_expr_model.set_model(Some(self.filter_model.clone().upcast()));
+                    self.sort_model.set_model(Some(&latest_activity_expr_model));
+                    self.sort_model.set_sorter(Some(&sorter));
+                }
+                CategorySortCriteria::Name => {
+                    let room_display_name = Room::this_expression("display-name");
+                    let sorter = gtk::StringSorter::builder()
+                        .expression(&room_display_name)
+                        .build();
+
+                    let display_name_expr_model = ExpressionListModel::new();
+                    display_name_expr_model.set_expressions(vec![room_display_name.upcast()]);
+                    display_name_expr_model.set_model(Some(self.filter_model.clone().upcast()));
+                    self.sort_model.set_model(Some(&display_name_expr_model));
+                    self.sort_model.set_sorter(Some(&sorter));
+                }
+            }
         }
 
         /// The type of this category.
@@ -152,6 +196,12 @@ mod imp {
         /// Set the type of this category.
         fn set_category_type(&self, type_: CategoryType) {
             self.filter.set_category_type(type_);
+        }
+
+        fn set_sort_criteria(&self, sort_criteria: CategorySortCriteria) {
+            self.sort_criteria.set(sort_criteria);
+            self.obj().notify_sort_criteria();
+            self.update_sorter();
         }
 
         /// Set whether this category is empty.
