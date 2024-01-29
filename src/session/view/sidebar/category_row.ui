@@ -1,6 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
-  <template class="SidebarCategoryRow" parent="AdwBin">
+  <menu id="category_menu">
+    <section>
+      <submenu>
+        <attribute name="label" translatable="yes">Sort</attribute>
+        <section>
+          <item>
+            <attribute name="label" translatable="yes">By last message</attribute>
+            <attribute name="action">category.sort-by</attribute>
+            <attribute name="target">last-message</attribute>
+          </item>
+          <item>
+            <attribute name="label" translatable="yes">By name</attribute>
+            <attribute name="action">category.sort-by</attribute>
+            <attribute name="target">name</attribute>
+          </item>
+        </section>
+      </submenu>
+    </section>
+  </menu>
+  <template class="SidebarCategoryRow" parent="ContextMenuBin">
+    <property name="popover">
+      <object class="GtkPopoverMenu">
+        <property name="menu-model">category_menu</property>
+        <property name="has-arrow">False</property>
+      </object>
+    </property>
+    <property name="has-context-menu">True</property>
     <child>
       <object class="GtkBox">
         <property name="spacing">12</property>

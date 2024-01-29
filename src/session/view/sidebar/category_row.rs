@@ -1,8 +1,11 @@
-use adw::subclass::prelude::BinImpl;
+use adw::{prelude::*, subclass::prelude::*};
 use gettextrs::gettext;
-use gtk::{glib, prelude::*, subclass::prelude::*, CompositeTemplate};
+use gtk::{gio, glib, glib::clone, CompositeTemplate};
 
-use crate::session::model::{Category, CategoryType};
+use crate::{
+    components::{ContextMenuBin, ContextMenuBinImpl},
+    session::model::{Category, CategorySortCriteria, CategoryType},
+};
 
 mod imp {
     use std::{
@@ -44,7 +47,7 @@ mod imp {
     impl ObjectSubclass for CategoryRow {
         const NAME: &'static str = "SidebarCategoryRow";
         type Type = super::CategoryRow;
-        type ParentType = adw::Bin;
+        type ParentType = ContextMenuBin;
 
         fn class_init(klass: &mut Self::Class) {
             Self::bind_template(klass);
@@ -64,11 +67,33 @@ mod imp {
             self.obj().connect_parent_notify(|obj| {
                 obj.set_expanded_accessibility_state(obj.expanded());
             });
+
+            let action_group = gio::SimpleActionGroup::new();
+            action_group.add_action_entries([
+                gio::ActionEntry::builder("sort-by")
+                    .parameter_type(Some(&String::static_variant_type()))
+                    .state("last-message".to_variant())
+                    .activate(clone!(@weak self as imp => move |_widget, action, parameter| {
+                        let Some(sort_by) = &parameter.and_then(|variant| variant.get::<String>()) else {
+                            return;
+                        };
+                        let Ok(sort_criteria) : Result<CategorySortCriteria, _> = sort_by.as_str().try_into() else {
+                            return;
+                        };
+
+                        action.set_state(parameter.unwrap());
+                        imp.category.borrow().as_ref().unwrap().set_sort_criteria(sort_criteria);
+                    }))
+                    .build(),
+            ]);
+            self.obj()
+                .insert_action_group("category", Some(&action_group));
         }
     }
 
     impl WidgetImpl for CategoryRow {}
     impl BinImpl for CategoryRow {}
+    impl ContextMenuBinImpl for CategoryRow {}
 
     impl CategoryRow {
         /// Set the category represented by this row.
@@ -171,7 +196,7 @@ mod imp {
 glib::wrapper! {
     /// A sidebar row representing a category.
     pub struct CategoryRow(ObjectSubclass<imp::CategoryRow>)
-        @extends gtk::Widget, adw::Bin, @implements gtk::Accessible;
+        @extends gtk::Widget, adw::Bin, ContextMenuBin, @implements gtk::Accessible;
 }
 
 impl CategoryRow {

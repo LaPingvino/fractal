@@ -6,7 +6,7 @@ mod list_model;
 mod selection;
 
 pub use self::{
-    category::{Category, CategoryType},
+    category::{Category, CategorySortCriteria, CategoryType},
     icon_item::{SidebarIconItem, SidebarIconItemType},
     item::{SidebarItem, SidebarItemExt, SidebarItemImpl},
     item_list::ItemList,
