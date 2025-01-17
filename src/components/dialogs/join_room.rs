@@ -180,6 +180,21 @@ mod imp {
             self.go_back_btn.set_visible(self.can_go_back());
         }
 
+        /// Copy the room alias to the clipboard.
+        #[template_callback]
+        fn copy_room_alias(&self) {
+            let Some(room) = self.room.borrow().clone() else {
+                return;
+            };
+
+            let alias = room.alias();
+            if let Some(alias) = &alias {
+                let obj = self.obj();
+                obj.clipboard().set_text(alias.as_str());
+                toast!(obj, gettext("Matrix room alias copied to clipboard"));
+            }
+        }
+
         /// Update the state of the entry page.
         #[template_callback]
         fn update_entry_page(&self) {
