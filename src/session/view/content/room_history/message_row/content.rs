@@ -40,6 +40,20 @@ pub enum ContentFormat {
     Ellipsized = 2,
 }
 
+enum MessageIcon {
+    Info,
+    Warning,
+}
+
+impl MessageIcon {
+    fn icon_name(self) -> &'static str {
+        match self {
+            MessageIcon::Info => "info-symbolic",
+            MessageIcon::Warning => "warning-symbolic",
+        }
+    }
+}
+
 mod imp {
     use std::cell::Cell;
 
@@ -279,8 +293,10 @@ trait MessageContentContainer: IsA<gtk::Widget> {
                     );
                 }
                 MsgLikeKind::UnableToDecrypt(_) => {
-                    let child = self.reuse_child_or_default::<MessageText>();
-                    child.with_plain_text(gettext("Could not decrypt this message, decryption will be retried once the keys are available."), format);
+                    self.build_info_message_content(
+                        &gettext("Could not decrypt this message, decryption will be retried once the keys are available."),
+                        MessageIcon::Warning,
+                    );
                 }
                 msg_like_kind => {
                     warn!("Unsupported message-like event content: {msg_like_kind:?}");
@@ -349,8 +365,7 @@ trait MessageContentContainer: IsA<gtk::Widget> {
                 );
             }
             MessageType::ServerNotice(message) => {
-                let child = self.reuse_child_or_default::<MessageText>();
-                child.with_plain_text(message.body.clone(), format);
+                self.build_info_message_content(&message.body.clone(), MessageIcon::Info);
             }
             MessageType::Text(message) => {
                 let child = self.reuse_child_or_default::<MessageText>();
@@ -368,6 +383,32 @@ trait MessageContentContainer: IsA<gtk::Widget> {
                 child.with_plain_text(gettext("Unsupported event"), format);
             }
         }
+    }
+
+    /// Build the content widget of the given informative message as a child
+    /// of this widget
+    fn build_info_message_content(&self, label: &str, icon: MessageIcon) {
+        let child = gtk::Grid::new();
+        let icon_widget = gtk::Image::new();
+        let icon_name = icon.icon_name();
+        icon_widget.set_icon_name(Some(icon_name));
+        icon_widget.set_margin_start(6);
+        icon_widget.set_margin_end(12);
+        let label_widget = gtk::Label::new(Some(label));
+        label_widget.set_css_classes(&["dimmed"]);
+        label_widget.set_wrap(true);
+        label_widget.set_wrap_mode(gtk::pango::WrapMode::WordChar);
+        label_widget.set_xalign(0.0);
+        label_widget.set_hexpand(true);
+        child.attach(&icon_widget, 0, 0, 1, 1);
+        child.attach_next_to(
+            &label_widget,
+            Some(&icon_widget),
+            gtk::PositionType::Right,
+            1,
+            1,
+        );
+        self.set_child(Some(child.clone().upcast()));
     }
 
     /// Build the content widget of the given media message as a child of this
