@@ -6,8 +6,14 @@ use ruma::{events::room::message::MessageType, OwnedEventId, OwnedTransactionId}
 use tracing::{error, warn};
 
 use super::{
-    audio::MessageAudio, caption::MessageCaption, file::MessageFile, location::MessageLocation,
-    reply::MessageReply, text::MessageText, visual_media::MessageVisualMedia,
+    audio::MessageAudio,
+    caption::MessageCaption,
+    file::MessageFile,
+    info::{MessageIcon, MessageInfo},
+    location::MessageLocation,
+    reply::MessageReply,
+    text::MessageText,
+    visual_media::MessageVisualMedia,
 };
 use crate::{
     prelude::*,
@@ -279,8 +285,11 @@ trait MessageContentContainer: IsA<gtk::Widget> {
                     );
                 }
                 MsgLikeKind::UnableToDecrypt(_) => {
-                    let child = self.reuse_child_or_default::<MessageText>();
-                    child.with_plain_text(gettext("Could not decrypt this message, decryption will be retried once the keys are available."), format);
+                    let child = self.reuse_child_or_default::<MessageInfo>();
+                    child.set_icon(MessageIcon::Warning);
+                    child.set_text(
+                        &gettext("Could not decrypt this message, decryption will be retried once the keys are available.")
+                    );
                 }
                 msg_like_kind => {
                     warn!("Unsupported message-like event content: {msg_like_kind:?}");
@@ -349,8 +358,9 @@ trait MessageContentContainer: IsA<gtk::Widget> {
                 );
             }
             MessageType::ServerNotice(message) => {
-                let child = self.reuse_child_or_default::<MessageText>();
-                child.with_plain_text(message.body.clone(), format);
+                let child = self.reuse_child_or_default::<MessageInfo>();
+                child.set_icon(MessageIcon::Info);
+                child.set_text(&message.body.clone());
             }
             MessageType::Text(message) => {
                 let child = self.reuse_child_or_default::<MessageText>();

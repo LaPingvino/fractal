@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="ContentMessageInfo" parent="AdwBin">
+    <property name="focusable">True</property>
+    <property name="valign">center</property>
+    <property name="halign">center</property>
+    <child>
+      <object class="GtkGrid">
+        <child>
+          <object class="GtkImage" id="icon">
+            <property name="margin-start">6</property>
+            <property name="margin-end">12</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkLabel" id="description">
+            <property name="css-classes">dimmed</property>
+            <property name="wrap">True</property>
+            <property name="wrap-mode">word-char</property>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>
