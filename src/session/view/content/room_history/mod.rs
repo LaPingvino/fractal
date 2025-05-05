@@ -216,7 +216,7 @@ mod imp {
                         return;
                     };
 
-                    obj.imp().message_toolbar.set_edit(&event);
+                    obj.imp().message_toolbar.set_edit(event);
                 },
             );
 
@@ -250,7 +250,7 @@ mod imp {
                     return;
                 };
 
-                obj.imp().message_toolbar.set_edit(&event);
+                obj.imp().message_toolbar.set_edit(event);
             });
         }
 

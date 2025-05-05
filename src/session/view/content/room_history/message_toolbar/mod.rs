@@ -15,7 +15,7 @@ use matrix_sdk::{
         reply::{EnforceThread, Reply},
     },
 };
-use matrix_sdk_ui::timeline::{AttachmentSource, TimelineEventItemId, TimelineItemContent};
+use matrix_sdk_ui::timeline::{AttachmentSource, TimelineEventItemId};
 use ruma::{
     events::{
         room::message::{LocationMessageEventContent, MessageType, RoomMessageEventContent},
@@ -264,6 +264,43 @@ mod imp {
             }
         }
 
+        /// Whether the buffer of the composer is identical to the body of
+        /// the message the composer is currently editing.
+        ///
+        /// Returns `true` if the composer currently has an Edit relation and
+        /// the composer body is identical to the body of the related
+        /// message.
+        fn is_unchanged_edit(&self) -> bool {
+            let composer_state = self.current_composer_state();
+
+            let Some(RelationInfo::Edit(message)) = composer_state.related_to() else {
+                return false;
+            };
+
+            let Some(message_type) = message.msgtype() else {
+                return false;
+            };
+
+            let original_body = match &message_type {
+                MessageType::Text(text) => &text.body,
+                MessageType::Emote(emote) => &emote.body,
+                _ => unreachable!(),
+            };
+
+            let composer_text = ComposerParser::new(&composer_state, None).into_plain_text();
+            let body = match &message_type {
+                MessageType::Emote(_) => {
+                    // If the user removed the `/me ` prefix, it is not an emote anymore
+                    // so it is technically a change.
+                    composer_text.strip_prefix("/me ")
+                }
+                _ => Some(std::string::String::as_str(&composer_text)),
+            };
+
+            let changed = body.is_none_or(|body| body != original_body);
+            !changed
+        }
+
         /// The current composer state.
         fn current_composer_state(&self) -> ComposerState {
             let timeline = self.timeline.upgrade();
@@ -315,14 +352,23 @@ mod imp {
                 #[weak(rename_to = imp)]
                 self,
                 move |_| {
-                    let is_empty = imp.is_buffer_empty();
-                    imp.send_button.set_sensitive(!is_empty);
-                    imp.send_typing_notification(!is_empty);
+                    // Disable send button and typing notification if buffer is empty, or
+                    // (if we're editing) unchanged from original message
+                    if imp.is_buffer_empty() || imp.is_unchanged_edit() {
+                        imp.send_button.set_sensitive(false);
+                        imp.send_typing_notification(false);
+                    } else {
+                        imp.send_button.set_sensitive(true);
+                        imp.send_typing_notification(true);
+                    }
                 }
             ));
 
-            let is_empty = self.is_buffer_empty();
-            self.send_button.set_sensitive(!is_empty);
+            if self.is_buffer_empty() || self.is_unchanged_edit() {
+                self.send_button.set_sensitive(false);
+            } else {
+                self.send_button.set_sensitive(true);
+            }
 
             // Markdown highlighting.
             let markdown_binding = obj
@@ -448,28 +494,18 @@ mod imp {
         }
 
         /// Set the event to edit.
-        pub(super) fn set_edit(&self, event: &Event) {
+        pub(super) fn set_edit(&self, event: Event) {
             if !self.can_compose_message() {
                 return;
             }
 
-            let item = event.item();
-
-            let Some(event_id) = item.event_id() else {
-                warn!("Cannot send edit for event that is not sent yet");
-                return;
-            };
-            let TimelineItemContent::MsgLike(msg_like) = item.content() else {
-                warn!("Unsupported event type for edit");
-                return;
-            };
-            let Some(message) = msg_like.as_message() else {
+            let Some(message_event) = MessageEventSource::from_event(event) else {
                 warn!("Unsupported event type for edit");
                 return;
             };
 
             self.current_composer_state()
-                .set_edit_source(event_id.to_owned(), &message);
+                .set_edit_source(&message_event);
 
             self.message_entry.grab_focus();
         }
@@ -538,6 +574,9 @@ mod imp {
             if !self.can_compose_message() {
                 return;
             }
+            if !self.send_button.is_sensitive() {
+                return;
+            }
             let Some(timeline) = self.timeline.upgrade() else {
                 return;
             };
@@ -572,8 +611,9 @@ mod imp {
                         toast!(self.obj(), gettext("Could not send reply"));
                     }
                 }
-                Some(RelationInfo::Edit(event_id)) => {
+                Some(RelationInfo::Edit(message_event)) => {
                     let matrix_room = timeline.room().matrix_room().clone();
+                    let event_id = message_event.event_id();
                     let handle = spawn_tokio!(async move {
                         let full_content = matrix_room
                             .make_edit_event(&event_id, EditedContent::RoomMessage(content))
@@ -1069,7 +1109,7 @@ impl MessageToolbar {
     }
 
     /// Set the event to edit.
-    pub(crate) fn set_edit(&self, event: &Event) {
+    pub(crate) fn set_edit(&self, event: Event) {
         self.imp().set_edit(event);
     }
 
