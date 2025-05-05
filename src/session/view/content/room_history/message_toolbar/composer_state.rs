@@ -5,7 +5,7 @@ use gtk::{
     subclass::prelude::*,
 };
 use matrix_sdk::{deserialized_responses::TimelineEvent, ComposerDraft, ComposerDraftType};
-use matrix_sdk_ui::timeline::Message;
+use matrix_sdk_ui::timeline::TimelineItemContent;
 use ruma::{
     events::{
         room::message::{MessageFormat, MessageType, OriginalSyncRoomMessageEvent},
@@ -339,8 +339,24 @@ mod imp {
         }
 
         /// Update the buffer for the given edit source.
-        pub(super) fn set_edit_source(&self, event_id: OwnedEventId, message: &Message) {
+        pub(super) fn set_edit_source(&self, message_event: &MessageEventSource) {
             let Some(room) = self.room.upgrade() else {
+                return;
+            };
+
+            let MessageEventSource::Event(event) = message_event else {
+                warn!("Unsupported event type for edit");
+                return;
+            };
+
+            let item = event.item();
+
+            let TimelineItemContent::MsgLike(msg_like) = item.content() else {
+                warn!("Unsupported event type for edit");
+                return;
+            };
+            let Some(message) = msg_like.as_message() else {
+                warn!("Unsupported event type for edit");
                 return;
             };
 
@@ -353,7 +369,7 @@ mod imp {
                 _ => return,
             };
 
-            self.set_related_to(Some(RelationInfo::Edit(event_id)));
+            self.set_related_to(Some(RelationInfo::Edit(message_event.clone())));
 
             // Try to detect rich mentions.
             let mut mentions = if let Some(html) =
@@ -483,8 +499,8 @@ impl ComposerState {
     }
 
     /// Update the buffer for the given edit source.
-    pub(crate) fn set_edit_source(&self, event_id: OwnedEventId, message: &Message) {
-        self.imp().set_edit_source(event_id, message);
+    pub(crate) fn set_edit_source(&self, message_event: &MessageEventSource) {
+        self.imp().set_edit_source(message_event);
     }
 
     /// Add the given widget at the position of the given iter to this state.
@@ -518,16 +534,16 @@ pub(crate) enum RelationInfo {
     /// Send a reply to the given event.
     Reply(MessageEventSource),
 
-    /// Send an edit to the event with the given ID.
-    Edit(OwnedEventId),
+    /// Send an edit to the given event.
+    Edit(MessageEventSource),
 }
 
 impl RelationInfo {
     /// Construct a relation info from a composer draft, if possible.
     pub(crate) async fn from_draft(room: &Room, draft_type: ComposerDraftType) -> Option<Self> {
-        match draft_type {
+        match &draft_type {
             ComposerDraftType::NewMessage => None,
-            ComposerDraftType::Reply { event_id } => {
+            ComposerDraftType::Reply { event_id } | ComposerDraftType::Edit { event_id } => {
                 // We need to fetch the event and extract its content, so we can display it.
                 let matrix_room = room.matrix_room().clone();
                 let event_id_clone = event_id.clone();
@@ -550,17 +566,21 @@ impl RelationInfo {
                     return None;
                 };
 
-                Some(RelationInfo::Reply(message_event))
+                match draft_type {
+                    ComposerDraftType::Reply { .. } => Some(RelationInfo::Reply(message_event)),
+                    ComposerDraftType::Edit { .. } => Some(RelationInfo::Edit(message_event)),
+                    ComposerDraftType::NewMessage { .. } => None,
+                }
             }
-            ComposerDraftType::Edit { event_id } => Some(RelationInfo::Edit(event_id)),
         }
     }
 
     /// The unique global identifier of the related event.
     pub(crate) fn event_id(&self) -> OwnedEventId {
         match self {
-            RelationInfo::Reply(message_event) => message_event.event_id(),
-            RelationInfo::Edit(event_id) => event_id.clone(),
+            RelationInfo::Reply(message_event) | RelationInfo::Edit(message_event) => {
+                message_event.event_id()
+            }
         }
     }
 
@@ -570,8 +590,8 @@ impl RelationInfo {
             Self::Reply(message_event) => ComposerDraftType::Reply {
                 event_id: message_event.event_id(),
             },
-            Self::Edit(event_id) => ComposerDraftType::Edit {
-                event_id: event_id.clone(),
+            Self::Edit(message_event) => ComposerDraftType::Edit {
+                event_id: message_event.event_id(),
             },
         }
     }
