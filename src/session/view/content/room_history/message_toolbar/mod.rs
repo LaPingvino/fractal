@@ -448,7 +448,38 @@ mod imp {
                 move |_| {
                     let is_empty = imp.is_buffer_empty();
                     imp.send_button.set_sensitive(!is_empty);
-                    imp.send_typing_notification(!is_empty);
+
+                    if is_empty {
+                        return;
+                    }
+
+                    // If we're editing, disable the send button while the body is unchanged
+                    if let Some(RelationInfo::Edit(message)) =
+                        imp.current_composer_state().related_to()
+                    {
+                        if let Some(message_type) = message.msgtype() {
+                            let original_body = match &message_type {
+                                MessageType::Text(text) => text.body.clone(),
+                                MessageType::Emote(emote) => emote.body.clone(),
+                                _ => return,
+                            };
+                            let body = match &message_type {
+                                MessageType::Emote(_) => {
+                                    ComposerParser::new(&imp.current_composer_state(), None)
+                                        .into_plain_text()
+                                        .replace("/me ", "")
+                                }
+                                MessageType::Text(_) => {
+                                    ComposerParser::new(&imp.current_composer_state(), None)
+                                        .into_plain_text()
+                                }
+                                _ => return,
+                            };
+                            let unchanged = original_body == body;
+                            imp.send_button.set_sensitive(!unchanged);
+                            imp.send_typing_notification(!unchanged);
+                        }
+                    }
                 }
             ));
 
@@ -586,21 +617,22 @@ mod imp {
 
             let item = event.item();
 
-            let Some(event_id) = item.event_id() else {
-                warn!("Cannot send edit for event that is not sent yet");
-                return;
-            };
             let TimelineItemContent::MsgLike(msg_like) = item.content() else {
                 warn!("Unsupported event type for edit");
                 return;
             };
-            let Some(message) = msg_like.as_message() else {
+            let Some(_message) = msg_like.as_message() else {
+                warn!("Unsupported event type for edit");
+                return;
+            };
+
+            let Some(message_event) = MessageEventSource::from_event(event.clone()) else {
                 warn!("Unsupported event type for edit");
                 return;
             };
 
             self.current_composer_state()
-                .set_edit_source(event_id.to_owned(), &message);
+                .set_edit_source(&message_event);
 
             self.message_entry.grab_focus();
         }
@@ -669,6 +701,9 @@ mod imp {
             if !self.can_compose_message() {
                 return;
             }
+            if !self.send_button.is_sensitive() {
+                return;
+            }
             let Some(timeline) = self.timeline.upgrade() else {
                 return;
             };
@@ -703,8 +738,9 @@ mod imp {
                         toast!(self.obj(), gettext("Could not send reply"));
                     }
                 }
-                Some(RelationInfo::Edit(event_id)) => {
+                Some(RelationInfo::Edit(message_event)) => {
                     let matrix_room = timeline.room().matrix_room().clone();
+                    let event_id = message_event.event_id();
                     let handle = spawn_tokio!(async move {
                         let full_content = matrix_room
                             .make_edit_event(&event_id, EditedContent::RoomMessage(content))
