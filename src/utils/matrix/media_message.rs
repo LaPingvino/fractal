@@ -46,6 +46,7 @@ macro_rules! filename {
 
 /// A media message.
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum MediaMessage {
     /// An audio.
     Audio(AudioMessageEventContent),
@@ -205,6 +206,7 @@ impl From<StickerEventContent> for MediaMessage {
 
 /// A visual media message.
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum VisualMediaMessage {
     /// An image.
     Image(ImageMessageEventContent),

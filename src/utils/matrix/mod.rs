@@ -111,6 +111,7 @@ pub(crate) fn validate_password(password: &str) -> PasswordValidity {
 
 /// An deserialized event received in a sync response.
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum AnySyncOrStrippedTimelineEvent {
     /// An event from a joined or left room.
     Sync(AnySyncTimelineEvent),

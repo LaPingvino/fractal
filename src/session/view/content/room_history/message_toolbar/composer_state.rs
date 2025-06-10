@@ -515,6 +515,7 @@ impl ComposerState {
 
 /// The possible relations to send with a message.
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum RelationInfo {
     /// Send a reply to the given event.
     Reply(MessageEventSource),
@@ -646,6 +647,7 @@ struct DetectedMention {
 
 /// The possible sources of a message event.
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum MessageEventSource {
     /// An original event.
     OriginalEvent(OriginalSyncRoomMessageEvent),
