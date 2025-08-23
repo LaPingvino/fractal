@@ -251,6 +251,9 @@
             </binding>
             <property name="action-name">details.show-subpage</property>
             <property name="action-target">'join-rule'</property>
+            <style>
+              <class name="property"/>
+            </style>
           </object>
         </child>
         <child>
