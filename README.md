@@ -53,12 +53,11 @@ The current stable version is 13 (released October 31st 2025).
 
 You can get the official Fractal Flatpak from Flathub.
 
-<a href="https://flathub.org/apps/details/org.gnome.Fractal">
+<a href="https://flathub.org/apps/org.gnome.Fractal">
 <img
-    src="https://flathub.org/assets/badges/flathub-badge-i-en.svg"
-    alt="Download Fractal on Flathub"
-    width="240px"
-    height="80px"
+    src="https://flathub.org/api/badge?svg&locale=en&light"
+    alt="Get Fractal on Flathub"
+    width="240"
 />
 </a>
 
