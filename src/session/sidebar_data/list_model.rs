@@ -1,7 +1,7 @@
 use gtk::{glib, glib::clone, prelude::*, subclass::prelude::*};
 use tracing::debug;
 
-use super::{SidebarIconItem, SidebarItem, SidebarItemList, SidebarSection};
+use super::{SidebarIconItem, SidebarItemList, SidebarSection};
 use crate::{
     components::PillSourceExt,
     session::{IdentityVerification, Room},
@@ -173,11 +173,6 @@ mod imp {
                                 "type": "icon",
                                 "name": icon_item.item_type().to_string(),
                             }));
-                        } else if let Some(sidebar_item) = item.downcast_ref::<SidebarItem>() {
-                            structure.push(serde_json::json!({
-                                "type": "sidebar_item",
-                                "inner": "unknown"
-                            }));
                         }
                     }
                 }
@@ -212,7 +207,9 @@ mod imp {
 
         /// Set the current space being viewed.
         fn set_current_space(&self, space: Option<Room>) {
-            if *self.current_space.borrow() == space {
+            let old_space = self.current_space.borrow().clone();
+
+            if old_space == space {
                 return;
             }
 
@@ -225,7 +222,7 @@ mod imp {
             self.current_space.replace(space);
             self.obj().notify_current_space();
 
-            // Notify all sections that they need to re-filter
+            // Notify all sections and update back button visibility
             if let Some(item_list) = self.item_list.get() {
                 item_list.notify_current_space_changed();
             }

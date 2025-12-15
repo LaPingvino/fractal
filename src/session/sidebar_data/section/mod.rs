@@ -5,7 +5,7 @@ mod room_category_filter;
 
 pub use self::name::SidebarSectionName;
 use self::room_category_filter::RoomCategoryFilter;
-use super::{SidebarIconItem, SidebarIconItemType};
+
 use crate::{
     components::PillSourceExt,
     session::{
@@ -34,8 +34,6 @@ mod imp {
         pub(super) filter: RoomCategoryFilter,
         /// The current space being viewed (None = root level).
         pub(super) current_space: std::cell::RefCell<Option<Room>>,
-        /// The back button (shown when in a space, only for Spaces section).
-        back_button: OnceCell<SidebarIconItem>,
         /// The name of this section.
         #[property(get, set = Self::set_name, construct_only, builder(SidebarSectionName::default()))]
         name: Cell<SidebarSectionName>,
@@ -90,40 +88,11 @@ mod imp {
         }
 
         fn n_items(&self) -> u32 {
-            let base_count = self.inner_model().n_items();
-
-            // Add 1 for back button if we're in the Spaces section and inside a space
-            if self.name.get() == SidebarSectionName::Spaces
-                && self.current_space.borrow().is_some()
-            {
-                base_count + 1
-            } else {
-                base_count
-            }
+            self.inner_model().n_items()
         }
 
         fn item(&self, position: u32) -> Option<glib::Object> {
-            // If we're in Spaces section and inside a space, show back button at position 0
-            if self.name.get() == SidebarSectionName::Spaces
-                && self.current_space.borrow().is_some()
-                && position == 0
-            {
-                let back_button = self
-                    .back_button
-                    .get_or_init(|| SidebarIconItem::new(SidebarIconItemType::Back));
-                return Some(back_button.clone().upcast());
-            }
-
-            // Adjust position if we have a back button
-            let adjusted_position = if self.name.get() == SidebarSectionName::Spaces
-                && self.current_space.borrow().is_some()
-            {
-                position.checked_sub(1)?
-            } else {
-                position
-            };
-
-            self.inner_model().item(adjusted_position)
+            self.inner_model().item(position)
         }
     }
 
@@ -340,9 +309,6 @@ impl SidebarSection {
             None
         };
 
-        let had_space = self.imp().current_space.borrow().is_some();
-        let will_have_space = current_space.is_some();
-
         // Update the section's current space
         self.imp().current_space.replace(current_space.clone());
 
@@ -356,17 +322,6 @@ impl SidebarSection {
         // Update display name for Spaces section
         if self.name() == SidebarSectionName::Spaces {
             self.notify_display_name();
-        }
-
-        // For Spaces section, manage back button visibility
-        if self.name() == SidebarSectionName::Spaces && had_space != will_have_space {
-            if will_have_space {
-                // Added back button at position 0
-                self.items_changed(0, 0, 1);
-            } else {
-                // Removed back button from position 0
-                self.items_changed(0, 1, 0);
-            }
         }
 
         // Trigger the filter to re-evaluate all items
