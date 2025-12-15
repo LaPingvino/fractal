@@ -1,7 +1,9 @@
 use gtk::{glib, glib::clone, prelude::*, subclass::prelude::*};
+use tracing::debug;
 
-use super::SidebarItemList;
+use super::{SidebarIconItem, SidebarItem, SidebarItemList, SidebarSection};
 use crate::{
+    components::PillSourceExt,
     session::{IdentityVerification, Room},
     utils::{BoundObjectWeakRef, FixedSelection, expression},
 };
@@ -29,6 +31,9 @@ mod imp {
         /// The selected item, if it has signal handlers.
         selected_item: BoundObjectWeakRef<glib::Object>,
         item_type_filter: gtk::CustomFilter,
+        /// The current space being viewed (None = root level).
+        #[property(get = Self::current_space, set = Self::set_current_space, explicit_notify, nullable)]
+        current_space: std::cell::RefCell<Option<Room>>,
     }
 
     #[glib::object_subclass]
@@ -112,6 +117,78 @@ mod imp {
 
             let filter_model = gtk::FilterListModel::new(Some(flattened_model), Some(multi_filter));
 
+            // Debug: Log the sidebar structure when items change
+            filter_model.connect_items_changed(|model, _, _, _| {
+                debug!("=== SIDEBAR STRUCTURE ===");
+                let mut structure = Vec::new();
+
+                for i in 0..model.n_items() {
+                    if let Some(item) = model.item(i) {
+                        if let Some(section) = item.downcast_ref::<SidebarSection>() {
+                            let mut section_data = serde_json::json!({
+                                "type": "section",
+                                "name": section.name().to_string(),
+                                "display_name": section.display_name(),
+                                "is_empty": section.is_empty(),
+                                "items": []
+                            });
+
+                            // List items in this section
+                            for j in 0..section.n_items() {
+                                if let Some(section_item) = section.item(j) {
+                                    if let Some(room) = section_item.downcast_ref::<Room>() {
+                                        section_data["items"].as_array_mut().unwrap().push(
+                                            serde_json::json!({
+                                                "type": "room",
+                                                "id": room.room_id().to_string(),
+                                                "name": room.display_name(),
+                                                "is_space": room.is_space(),
+                                                "is_orphaned": room.is_orphaned(),
+                                            }),
+                                        );
+                                    } else if let Some(icon_item) =
+                                        section_item.downcast_ref::<SidebarIconItem>()
+                                    {
+                                        section_data["items"].as_array_mut().unwrap().push(
+                                            serde_json::json!({
+                                                "type": "icon",
+                                                "name": icon_item.item_type().to_string(),
+                                            }),
+                                        );
+                                    }
+                                }
+                            }
+
+                            structure.push(section_data);
+                        } else if let Some(room) = item.downcast_ref::<Room>() {
+                            structure.push(serde_json::json!({
+                                "type": "room",
+                                "id": room.room_id().to_string(),
+                                "name": room.display_name(),
+                                "is_space": room.is_space(),
+                                "is_orphaned": room.is_orphaned(),
+                            }));
+                        } else if let Some(icon_item) = item.downcast_ref::<SidebarIconItem>() {
+                            structure.push(serde_json::json!({
+                                "type": "icon",
+                                "name": icon_item.item_type().to_string(),
+                            }));
+                        } else if let Some(sidebar_item) = item.downcast_ref::<SidebarItem>() {
+                            structure.push(serde_json::json!({
+                                "type": "sidebar_item",
+                                "inner": "unknown"
+                            }));
+                        }
+                    }
+                }
+
+                debug!(
+                    "Sidebar JSON:\n{}",
+                    serde_json::to_string_pretty(&structure).unwrap()
+                );
+                debug!("=== END SIDEBAR STRUCTURE ===");
+            });
+
             self.selection_model.set_model(Some(filter_model));
         }
 
@@ -126,6 +203,32 @@ mod imp {
             self.obj().notify_is_filtered();
             self.item_list().inhibit_expanded(is_filtered);
             self.item_type_filter.changed(gtk::FilterChange::Different);
+        }
+
+        /// Get the current space being viewed.
+        fn current_space(&self) -> Option<Room> {
+            self.current_space.borrow().clone()
+        }
+
+        /// Set the current space being viewed.
+        fn set_current_space(&self, space: Option<Room>) {
+            if *self.current_space.borrow() == space {
+                return;
+            }
+
+            if let Some(s) = &space {
+                debug!("Navigating into space: {}", s.room_id());
+            } else {
+                debug!("Navigating to root level");
+            }
+
+            self.current_space.replace(space);
+            self.obj().notify_current_space();
+
+            // Notify all sections that they need to re-filter
+            if let Some(item_list) = self.item_list.get() {
+                item_list.notify_current_space_changed();
+            }
         }
     }
 }

@@ -1,6 +1,6 @@
 use gtk::{glib, prelude::*, subclass::prelude::*};
 
-use crate::session::RoomCategory;
+use crate::session::{Room, RoomCategory};
 
 mod imp {
     use std::cell::{Cell, RefCell};
@@ -18,6 +18,8 @@ mod imp {
         /// The room category to filter.
         #[property(get, set = Self::set_room_category, explicit_notify, builder(RoomCategory::default()))]
         room_category: Cell<RoomCategory>,
+        /// The current space being viewed (set by the section).
+        pub(in crate::session::sidebar_data::section) current_space: RefCell<Option<Room>>,
     }
 
     #[glib::object_subclass]
@@ -42,7 +44,9 @@ mod imp {
         fn match_(&self, item: &glib::Object) -> bool {
             let room_category = self.room_category.get();
 
-            self.expression
+            // First check if the category matches
+            let category_matches = self
+                .expression
                 .borrow()
                 .as_ref()
                 .and_then(|e| e.evaluate(Some(item)))
@@ -50,7 +54,26 @@ mod imp {
                     v.get::<RoomCategory>()
                         .expect("expression returns a room category")
                 })
-                .is_some_and(|item_room_category| item_room_category == room_category)
+                .is_some_and(|item_room_category| item_room_category == room_category);
+
+            if !category_matches {
+                return false;
+            }
+
+            // Apply space-based filtering
+            let Some(room) = item.downcast_ref::<Room>() else {
+                return true;
+            };
+
+            let current_space = self.current_space.borrow();
+
+            if let Some(space) = current_space.as_ref() {
+                // Inside a space: show only children of this space
+                room.is_in_space(space.room_id())
+            } else {
+                // At root level: only show orphaned items (not in any space)
+                room.is_orphaned()
+            }
         }
     }
 
