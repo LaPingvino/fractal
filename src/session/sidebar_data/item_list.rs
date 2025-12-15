@@ -7,8 +7,8 @@ use super::{
 };
 use crate::session::{RoomCategory, RoomList, VerificationList};
 
-/// The number of top-level items in the sidebar.
-const TOP_LEVEL_ITEMS_COUNT: usize = 10;
+/// The number of top-level items in the sidebar (including back button).
+const TOP_LEVEL_ITEMS_COUNT: usize = 11;
 
 mod imp {
     use std::cell::OnceCell;
@@ -50,9 +50,14 @@ mod imp {
             let room_list = obj.room_list();
             let verification_list = obj.verification_list();
 
+            // Create back button and hide it initially (shown only when in a space)
+            let back_button = SidebarItem::new(SidebarIconItem::new(SidebarIconItemType::Back));
+            back_button.set_visible(false);
+
             let list = self.list.get_or_init(|| {
                 [
                     SidebarItem::new(SidebarIconItem::new(SidebarIconItemType::Explore)),
+                    back_button,
                     SidebarItem::new(SidebarSection::new(SidebarSectionName::Spaces, &room_list)),
                     SidebarItem::new(SidebarSection::new(
                         SidebarSectionName::VerificationRequest,
@@ -182,7 +187,7 @@ impl SidebarItemList {
         &self,
         category: RoomCategory,
     ) -> Option<SidebarSection> {
-        const FIRST_ROOM_SECTION_INDEX: usize = 1;
+        const FIRST_ROOM_SECTION_INDEX: usize = 2; // After Explore and Back button
 
         let index = match category {
             RoomCategory::Space => FIRST_ROOM_SECTION_INDEX,
@@ -204,6 +209,19 @@ impl SidebarItemList {
 
     /// Notify all sections that the current space has changed.
     pub(crate) fn notify_current_space_changed(&self) {
+        // Update back button visibility (position 1 in the list)
+        if let Some(back_item) = self.imp().list().get(1) {
+            // Get current space state from the session
+            let room_list = self.room_list();
+            if let Some(session) = room_list.session() {
+                let sidebar = session.sidebar_list_model();
+                let is_in_space = sidebar.current_space().is_some();
+
+                // Show back button only when inside a space
+                back_item.set_visible(is_in_space);
+            }
+        }
+
         // Trigger re-filtering in all sections by notifying them
         for item in self.imp().list() {
             if let Some(section) = item.inner_item().downcast_ref::<SidebarSection>() {
