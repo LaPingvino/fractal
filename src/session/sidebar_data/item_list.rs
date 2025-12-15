@@ -8,7 +8,7 @@ use super::{
 use crate::session::{RoomCategory, RoomList, VerificationList};
 
 /// The number of top-level items in the sidebar.
-const TOP_LEVEL_ITEMS_COUNT: usize = 9;
+const TOP_LEVEL_ITEMS_COUNT: usize = 10;
 
 mod imp {
     use std::cell::OnceCell;
@@ -53,6 +53,7 @@ mod imp {
             let list = self.list.get_or_init(|| {
                 [
                     SidebarItem::new(SidebarIconItem::new(SidebarIconItemType::Explore)),
+                    SidebarItem::new(SidebarSection::new(SidebarSectionName::Spaces, &room_list)),
                     SidebarItem::new(SidebarSection::new(
                         SidebarSectionName::VerificationRequest,
                         &verification_list,
@@ -181,15 +182,16 @@ impl SidebarItemList {
         &self,
         category: RoomCategory,
     ) -> Option<SidebarSection> {
-        const FIRST_ROOM_SECTION_INDEX: usize = 2;
+        const FIRST_ROOM_SECTION_INDEX: usize = 1;
 
         let index = match category {
-            RoomCategory::Knocked => FIRST_ROOM_SECTION_INDEX,
-            RoomCategory::Invited => FIRST_ROOM_SECTION_INDEX + 1,
-            RoomCategory::Favorite => FIRST_ROOM_SECTION_INDEX + 2,
-            RoomCategory::Normal => FIRST_ROOM_SECTION_INDEX + 3,
-            RoomCategory::LowPriority => FIRST_ROOM_SECTION_INDEX + 4,
-            RoomCategory::Left => FIRST_ROOM_SECTION_INDEX + 5,
+            RoomCategory::Space => FIRST_ROOM_SECTION_INDEX,
+            RoomCategory::Knocked => FIRST_ROOM_SECTION_INDEX + 2,
+            RoomCategory::Invited => FIRST_ROOM_SECTION_INDEX + 3,
+            RoomCategory::Favorite => FIRST_ROOM_SECTION_INDEX + 4,
+            RoomCategory::Normal => FIRST_ROOM_SECTION_INDEX + 5,
+            RoomCategory::LowPriority => FIRST_ROOM_SECTION_INDEX + 6,
+            RoomCategory::Left => FIRST_ROOM_SECTION_INDEX + 7,
             _ => return None,
         };
 
@@ -198,5 +200,15 @@ impl SidebarItemList {
             .get(index)
             .map(SidebarItem::inner_item)
             .and_downcast()
+    }
+
+    /// Notify all sections that the current space has changed.
+    pub(crate) fn notify_current_space_changed(&self) {
+        // Trigger re-filtering in all sections by notifying them
+        for item in self.imp().list() {
+            if let Some(section) = item.inner_item().downcast_ref::<SidebarSection>() {
+                section.notify_current_space_changed();
+            }
+        }
     }
 }

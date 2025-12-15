@@ -21,6 +21,16 @@ template $SidebarRoomRow: Adw.Bin {
         ellipsize: end;
         label: bind template.room as <$Room>.display-name;
       }
+
+      Gtk.Image space_icon {
+        visible: bind template.room as <$Room>.is-space;
+        icon-name: "folder-symbolic";
+        accessible-role: presentation;
+
+        styles [
+          "dimmed",
+        ]
+      }
     }
 
     [end]

@@ -230,6 +230,13 @@ mod imp {
         /// Whether we already attempted an auto-join.
         #[property(get)]
         attempted_auto_join: Cell<bool>,
+        /// Whether this room is a space.
+        #[property(get)]
+        is_space: Cell<bool>,
+        /// The parent spaces that this room belongs to.
+        pub(super) parent_spaces: RefCell<HashSet<OwnedRoomId>>,
+        /// The child rooms of this space (only populated if this room is a space).
+        pub(super) child_rooms: RefCell<HashSet<OwnedRoomId>>,
     }
 
     #[glib::object_subclass]
@@ -261,6 +268,9 @@ mod imp {
         pub(super) fn init(&self, matrix_room: MatrixRoom, metainfo: Option<RoomMetainfo>) {
             let obj = self.obj();
 
+            // Set is_space before storing the matrix_room
+            self.is_space.set(matrix_room.is_space());
+
             self.matrix_room
                 .set(matrix_room)
                 .expect("matrix room is uninitialized");
@@ -272,6 +282,9 @@ mod imp {
             self.join_rule.init(&obj);
             self.set_up_typing();
             self.watch_send_queue();
+
+            // Load space relationships asynchronously
+            obj.load_space_relationships();
 
             spawn!(
                 glib::Priority::DEFAULT_IDLE,
@@ -2247,6 +2260,168 @@ impl Room {
                 f(&obj);
             }),
         )
+    }
+
+    /// Add a parent space to this room.
+    pub(crate) fn add_parent_space(&self, space_id: OwnedRoomId) {
+        debug!(
+            "Adding parent space {} to room {}",
+            space_id,
+            self.room_id()
+        );
+        self.imp().parent_spaces.borrow_mut().insert(space_id);
+    }
+
+    /// Add a child room to this space.
+    pub(crate) fn add_child_room(&self, room_id: OwnedRoomId) {
+        debug!("Adding child room {} to space {}", room_id, self.room_id());
+        self.imp().child_rooms.borrow_mut().insert(room_id);
+    }
+
+    /// Check if this room is a child of the given space.
+    pub(crate) fn is_in_space(&self, space_id: &RoomId) -> bool {
+        let result = self.imp().parent_spaces.borrow().contains(space_id);
+        debug!(
+            "Checking if room {} is in space {}: {} (has {} parents)",
+            self.room_id(),
+            space_id,
+            result,
+            self.imp().parent_spaces.borrow().len()
+        );
+        result
+    }
+
+    /// Check if this room is not in any space (orphaned).
+    pub(crate) fn is_orphaned(&self) -> bool {
+        self.imp().parent_spaces.borrow().is_empty()
+    }
+
+    /// Get the child rooms and spaces of this space.
+    pub(crate) fn child_rooms(&self) -> Vec<OwnedRoomId> {
+        self.imp().child_rooms.borrow().iter().cloned().collect()
+    }
+
+    /// Load space relationships from Matrix state events.
+    pub(crate) fn load_space_relationships(&self) {
+        use ruma::events::space::child::SpaceChildEventContent;
+        use ruma::events::space::parent::SpaceParentEventContent;
+
+        let matrix_room = self.matrix_room().clone();
+        let room_id = matrix_room.room_id().to_owned();
+        let is_space = matrix_room.is_space();
+
+        spawn!(clone!(
+            #[weak(rename_to = room)]
+            self,
+            async move {
+                debug!("Loading space relationships for room: {}", room_id);
+
+                // Do the async work in a tokio task
+                let handle = spawn_tokio!(async move {
+                    // Load space children if this is a space
+                    let child_room_ids = if is_space {
+                        debug!("Room {} is a space, loading children", room_id);
+                        match matrix_room
+                            .get_state_events_static::<SpaceChildEventContent>()
+                            .await
+                        {
+                            Ok(events) => {
+                                let mut ids = Vec::new();
+                                debug!("Got {} space child events for {}", events.len(), room_id);
+                                for raw_event in events {
+                                    if let Ok(event) = raw_event.deserialize() {
+                                        let child_id = event.state_key().to_owned();
+                                        debug!("  Space {} has child: {}", room_id, child_id);
+                                        ids.push(child_id);
+                                    }
+                                }
+                                ids
+                            }
+                            Err(error) => {
+                                debug!("Failed to load space children for {}: {error}", room_id);
+                                Vec::new()
+                            }
+                        }
+                    } else {
+                        Vec::new()
+                    };
+
+                    // Load space parents for all rooms
+                    let parent_space_ids = match matrix_room
+                        .get_state_events_static::<SpaceParentEventContent>()
+                        .await
+                    {
+                        Ok(events) => {
+                            let mut ids = Vec::new();
+                            debug!("Got {} space parent events for {}", events.len(), room_id);
+                            for raw_event in events {
+                                if let Ok(event) = raw_event.deserialize() {
+                                    let parent_id = event.state_key().to_owned();
+                                    debug!("  Room {} has parent space: {}", room_id, parent_id);
+                                    ids.push(parent_id);
+                                }
+                            }
+                            ids
+                        }
+                        Err(error) => {
+                            debug!("Failed to load space parents for {}: {error}", room_id);
+                            Vec::new()
+                        }
+                    };
+
+                    (child_room_ids, parent_space_ids)
+                });
+
+                // Wait for the tokio task and update the room on the main thread
+                let Ok((child_room_ids, parent_space_ids)) = handle.await else {
+                    debug!("Failed to load space relationships for {}", room.room_id());
+                    return;
+                };
+
+                debug!(
+                    "Updating room {} with {} children and {} parents",
+                    room.room_id(),
+                    child_room_ids.len(),
+                    parent_space_ids.len()
+                );
+
+                // Get the room list to establish bidirectional relationships
+                let Some(session) = room.session() else {
+                    debug!("No session available for room {}", room.room_id());
+                    return;
+                };
+                let room_list = session.room_list();
+                let this_room_id = room.room_id().to_owned();
+
+                // Add children and establish parent relationship on the child side
+                for child_id in child_room_ids {
+                    room.add_child_room(child_id.clone());
+
+                    // Also tell the child room that this room is its parent
+                    if let Some(child_room) = room_list.get(&child_id) {
+                        debug!(
+                            "Establishing bidirectional relationship: {} (space) -> {} (child)",
+                            this_room_id, child_id
+                        );
+                        child_room.add_parent_space(this_room_id.clone());
+                    }
+                }
+
+                // Add parents and establish child relationship on the parent side
+                for parent_id in parent_space_ids {
+                    room.add_parent_space(parent_id.clone());
+
+                    // Also tell the parent space that this room is its child
+                    if let Some(parent_space) = room_list.get(&parent_id) {
+                        debug!(
+                            "Establishing bidirectional relationship: {} (parent) -> {} (child)",
+                            parent_id, this_room_id
+                        );
+                        parent_space.add_child_room(this_room_id.clone());
+                    }
+                }
+            }
+        ));
     }
 }
 

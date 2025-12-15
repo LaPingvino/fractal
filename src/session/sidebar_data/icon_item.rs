@@ -13,6 +13,8 @@ pub enum SidebarIconItemType {
     Explore,
     /// An action to forget a room.
     Forget,
+    /// Navigate back to parent space.
+    Back,
 }
 
 impl SidebarIconItemType {
@@ -21,6 +23,7 @@ impl SidebarIconItemType {
         match self {
             Self::Explore => "explore-symbolic",
             Self::Forget => "user-trash-symbolic",
+            Self::Back => "go-previous-symbolic",
         }
     }
 }
@@ -30,6 +33,7 @@ impl fmt::Display for SidebarIconItemType {
         let label = match self {
             Self::Explore => gettext("Explore"),
             Self::Forget => gettext("Forget Room"),
+            Self::Back => gettext("Back"),
         };
 
         f.write_str(&label)
@@ -95,6 +99,7 @@ impl SidebarIconItem {
         match self.item_type() {
             SidebarIconItemType::Explore => true,
             SidebarIconItemType::Forget => source_category == Some(RoomCategory::Left),
+            SidebarIconItemType::Back => false, // Back button is not a drop target
         }
     }
 }
