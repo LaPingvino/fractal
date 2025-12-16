@@ -328,6 +328,19 @@ impl SidebarSection {
         self.imp().filter.changed(gtk::FilterChange::Different);
     }
 
+    /// Notify this section that the search state has changed.
+    pub(crate) fn notify_search_changed(&self, is_search_active: bool) {
+        // Update the filter's search state
+        self.imp()
+            .filter
+            .imp()
+            .is_search_active
+            .set(is_search_active);
+
+        // Trigger the filter to re-evaluate all items
+        self.imp().filter.changed(gtk::FilterChange::Different);
+    }
+
     /// Whether this section should be shown for the drag-n-drop of a room with
     /// the given category.
     pub(crate) fn visible_for_room_category(&self, source_category: Option<RoomCategory>) -> bool {

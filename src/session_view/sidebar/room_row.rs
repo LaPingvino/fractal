@@ -30,6 +30,8 @@ mod imp {
         display_name: TemplateChild<gtk::Label>,
         #[template_child]
         notification_count: TemplateChild<gtk::Label>,
+        direct_icon: RefCell<Option<gtk::Image>>,
+        space_icon: RefCell<Option<gtk::Image>>,
         /// The room represented by this row.
         #[property(get, set = Self::set_room, explicit_notify, nullable)]
         room: BoundObject<Room>,
@@ -116,6 +118,13 @@ mod imp {
                         imp.update_accessibility_label();
                     }
                 ));
+                let space_handler = room.connect_is_space_notify(clone!(
+                    #[weak(rename_to = imp)]
+                    self,
+                    move |_| {
+                        imp.update_space_icon();
+                    }
+                ));
                 let name_handler = room.connect_display_name_notify(clone!(
                     #[weak(rename_to = imp)]
                     self,
@@ -143,6 +152,7 @@ mod imp {
                     vec![
                         highlight_handler,
                         direct_handler,
+                        space_handler,
                         name_handler,
                         notifications_count_handler,
                         category_handler,
@@ -154,7 +164,8 @@ mod imp {
 
             self.update_display_name();
             self.update_highlight();
-            self.update_room_icon();
+            self.update_direct_icon();
+            self.update_space_icon();
             self.obj().notify_room();
         }
 
@@ -263,6 +274,44 @@ mod imp {
                 self.room_icon.set_visible(true);
             } else {
                 self.room_icon.set_visible(false);
+            }
+        }
+
+        /// Update the icon showing whether a room is a space or not.
+        fn update_space_icon(&self) {
+            let room = self.room.obj();
+            let is_space = room.as_ref().map(|r| r.is_space()).unwrap_or(false);
+
+            if let Some(room) = &room {
+                tracing::info!(
+                    "update_space_icon called for room '{}' (id: {}), is_space: {}",
+                    room.display_name(),
+                    room.room_id(),
+                    is_space
+                );
+            }
+
+            if is_space {
+                if self.space_icon.borrow().is_none() {
+                    tracing::info!("Creating and prepending folder icon to display_name_box");
+                    let icon = gtk::Image::builder()
+                        .icon_name("folder-symbolic")
+                        .icon_size(gtk::IconSize::Normal)
+                        .css_classes(["dimmed"])
+                        .build();
+
+                    self.display_name_box.prepend(&icon);
+                    self.space_icon.replace(Some(icon));
+                    tracing::info!(
+                        "Folder icon prepended, display_name_box now has {} children",
+                        self.display_name_box.observe_children().n_items()
+                    );
+                } else {
+                    tracing::debug!("Space icon already exists, not creating again");
+                }
+            } else if let Some(icon) = self.space_icon.take() {
+                tracing::info!("Removing folder icon from display_name_box");
+                self.display_name_box.remove(&icon);
             }
         }
 

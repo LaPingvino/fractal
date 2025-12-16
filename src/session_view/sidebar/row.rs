@@ -2,7 +2,7 @@ use adw::{prelude::*, subclass::prelude::*};
 use gettextrs::gettext;
 use gtk::{gdk, gio, glib, glib::clone};
 use ruma::api::client::receipt::create_receipt::v3::ReceiptType;
-use tracing::error;
+use tracing::{error, warn};
 
 use super::{
     Sidebar, SidebarIconItemRow, SidebarRoomRow, SidebarSectionRow, SidebarVerificationRow,
@@ -499,7 +499,24 @@ mod imp {
                         ))
                         .build()]);
                 }
-                RoomCategory::Outdated | RoomCategory::Space | RoomCategory::Ignored => {}
+                RoomCategory::Space => {
+                    // Spaces can be left
+                    action_group.add_action_entries([gio::ActionEntry::builder("leave")
+                        .activate(clone!(
+                            #[weak(rename_to = imp)]
+                            self,
+                            move |_, _, _| {
+                                if let Some(room) = imp.room() {
+                                    spawn!(async move {
+                                        imp.set_room_category(&room, TargetRoomCategory::Left)
+                                            .await;
+                                    });
+                                }
+                            }
+                        ))
+                        .build()]);
+                }
+                RoomCategory::Outdated | RoomCategory::Ignored => {}
             }
 
             if matches!(
@@ -539,6 +556,58 @@ mod imp {
                             }
                         ))
                         .build()]);
+                }
+            }
+
+            // Space management actions - only show when inside a space
+            if let Some(sidebar) = self.sidebar.obj() {
+                if let Some(list_model) = sidebar.list_model() {
+                    if let Some(current_space) = list_model.current_space() {
+                        let current_space_id = current_space.room_id().to_owned();
+
+                        // Check if this room is in the current space
+                        let is_in_space = room.parent_spaces().contains(&current_space_id);
+
+                        if is_in_space {
+                            // Show "Remove from Current Space" option
+                            let space_id = current_space_id.clone();
+                            action_group.add_action_entries([gio::ActionEntry::builder(
+                                "unlink-from-space",
+                            )
+                            .activate(clone!(
+                                #[weak]
+                                room,
+                                move |_, _, _| {
+                                    let space_id = space_id.clone();
+                                    spawn!(async move {
+                                        if let Err(err) = room.unlink_from_space(&space_id).await {
+                                            warn!("Failed to unlink room from space: {err}");
+                                        }
+                                    });
+                                }
+                            ))
+                            .build()]);
+                        } else if !room.is_space() {
+                            // Show "Add to Current Space" option for non-space rooms not in the space
+                            let space_id = current_space_id.clone();
+                            action_group.add_action_entries([gio::ActionEntry::builder(
+                                "link-to-space",
+                            )
+                            .activate(clone!(
+                                #[weak]
+                                room,
+                                move |_, _, _| {
+                                    let space_id = space_id.clone();
+                                    spawn!(async move {
+                                        if let Err(err) = room.link_to_space(&space_id).await {
+                                            warn!("Failed to link room to space: {err}");
+                                        }
+                                    });
+                                }
+                            ))
+                            .build()]);
+                        }
+                    }
                 }
             }
 

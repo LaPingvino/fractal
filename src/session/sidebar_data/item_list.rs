@@ -229,4 +229,14 @@ impl SidebarItemList {
             }
         }
     }
+
+    /// Notify all sections that the search state has changed.
+    pub(crate) fn notify_search_changed(&self, is_search_active: bool) {
+        // Trigger re-filtering in all sections
+        for item in self.imp().list() {
+            if let Some(section) = item.inner_item().downcast_ref::<SidebarSection>() {
+                section.notify_search_changed(is_search_active);
+            }
+        }
+    }
 }

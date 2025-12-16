@@ -445,6 +445,12 @@ mod imp {
             };
             let current_room = self.selected_room();
 
+            // Temporarily enable search mode to make all rooms visible (not filtered by space)
+            let sidebar_model = self.sidebar_list_model();
+            if let Some(model) = &sidebar_model {
+                model.set_is_search_active(true);
+            }
+
             if let Some((unread_room, _score)) = room_list
                 .snapshot()
                 .into_iter()
@@ -452,7 +458,26 @@ mod imp {
                 .filter_map(|room| Self::score_for_unread_room(&room).map(|score| (room, score)))
                 .max_by_key(|(_room, score)| *score)
             {
+                // Navigate to the room's parent space if it has one
+                if let Some(parent_spaces) = unread_room.parent_spaces().first() {
+                    if let Some(parent) = room_list.get(parent_spaces) {
+                        if let Some(model) = &sidebar_model {
+                            model.set_current_space(Some(parent.clone()));
+                        }
+                    }
+                } else {
+                    // Room is orphaned, navigate to root
+                    if let Some(model) = &sidebar_model {
+                        model.set_current_space(None::<Room>);
+                    }
+                }
+
                 self.select_room(unread_room);
+            }
+
+            // Disable search mode
+            if let Some(model) = &sidebar_model {
+                model.set_is_search_active(false);
             }
         }
 

@@ -55,4 +55,11 @@ impl TemplateCallbacks {
     pub fn ternary_string(test: bool, positive: String, negative: String) -> String {
         if test { positive } else { negative }
     }
+
+    /// Unsigned integer ternary operator returns one of the two arguments based on truth
+    /// value of test.
+    #[template_callback]
+    pub fn ternary_u64(test: bool, positive: u64, negative: u64) -> u64 {
+        if test { positive } else { negative }
+    }
 }

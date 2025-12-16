@@ -3,6 +3,7 @@ use gtk::{glib, glib::clone};
 
 use super::{Explore, Invite, InviteRequest, RoomHistory};
 use crate::{
+    components::PillSourceExt,
     identity_verification_view::IdentityVerificationView,
     session::{
         IdentityVerification, Room, RoomCategory, Session, SidebarIconItem, SidebarIconItemType,
@@ -25,6 +26,8 @@ enum ContentPage {
     Explore,
     /// The selected identity verification.
     Verification,
+    /// The space details and management page.
+    SpaceDetails,
 }
 
 impl ContentPage {
@@ -87,6 +90,20 @@ mod imp {
         verification_page_header_bar: TemplateChild<adw::HeaderBar>,
         #[template_child]
         identity_verification_widget: TemplateChild<IdentityVerificationView>,
+        #[template_child]
+        space_details_page: TemplateChild<adw::ToolbarView>,
+        #[template_child]
+        space_details_header_bar: TemplateChild<adw::HeaderBar>,
+        #[template_child]
+        space_name_label: TemplateChild<gtk::Label>,
+        #[template_child]
+        child_rooms_list: TemplateChild<gtk::ListBox>,
+        #[template_child]
+        child_rooms_group: TemplateChild<adw::PreferencesGroup>,
+        #[template_child]
+        suggested_rooms_list: TemplateChild<gtk::ListBox>,
+        #[template_child]
+        suggested_rooms_group: TemplateChild<adw::PreferencesGroup>,
         /// The current session.
         #[property(get, set = Self::set_session, explicit_notify, nullable)]
         session: glib::WeakRef<Session>,
@@ -256,6 +273,11 @@ mod imp {
                         self.invite.set_room(Some(room.clone()));
                         self.set_visible_page(ContentPage::Invite);
                     }
+                    RoomCategory::Space => {
+                        // Show space management page
+                        self.update_space_details(room);
+                        self.set_visible_page(ContentPage::SpaceDetails);
+                    }
                     _ => {
                         self.room_history.set_timeline(Some(room.live_timeline()));
                         self.set_visible_page(ContentPage::RoomHistory);
@@ -273,6 +295,83 @@ mod imp {
             }
         }
 
+        /// Update the space details page with information about the given space.
+        fn update_space_details(&self, space: &Room) {
+            // Set the space name
+            self.space_name_label.set_text(&space.display_name());
+
+            // Clear existing lists
+            while let Some(child) = self.child_rooms_list.first_child() {
+                self.child_rooms_list.remove(&child);
+            }
+            while let Some(child) = self.suggested_rooms_list.first_child() {
+                self.suggested_rooms_list.remove(&child);
+            }
+
+            // Get child rooms that user has joined
+            let Some(session) = space.session() else {
+                return;
+            };
+            let room_list = session.room_list();
+
+            let mut child_count = 0;
+            for child_id in space.child_rooms().iter() {
+                if let Some(child_room) = room_list.get(child_id) {
+                    let row = adw::ActionRow::builder()
+                        .title(child_room.display_name())
+                        .activatable(true)
+                        .build();
+
+                    // Add an icon based on room type
+                    let icon = if child_room.is_space() {
+                        gtk::Image::from_icon_name("folder-symbolic")
+                    } else if child_room.is_direct() {
+                        gtk::Image::from_icon_name("person-symbolic")
+                    } else {
+                        gtk::Image::from_icon_name("chat-symbolic")
+                    };
+                    icon.add_css_class("dim-label");
+                    row.add_prefix(&icon);
+
+                    self.child_rooms_list.append(&row);
+                    child_count += 1;
+                }
+            }
+
+            // Hide the group if no child rooms
+            self.child_rooms_group.set_visible(child_count > 0);
+
+            // Get suggested (unjoined) rooms
+            let suggested = space.suggested_rooms();
+            let suggested_count = suggested.len();
+
+            for chunk in suggested {
+                let row = adw::ActionRow::builder()
+                    .title(
+                        &chunk
+                            .summary
+                            .name
+                            .unwrap_or_else(|| chunk.summary.room_id.to_string()),
+                    )
+                    .subtitle(&chunk.summary.topic.unwrap_or_default())
+                    .activatable(true)
+                    .build();
+
+                // Add a join icon
+                let icon = gtk::Image::from_icon_name("list-add-symbolic");
+                icon.add_css_class("dim-label");
+                row.add_prefix(&icon);
+
+                // Make it look different (dimmed) since it's not joined
+                row.add_css_class("dim-label");
+
+                self.suggested_rooms_list.append(&row);
+            }
+
+            // Hide the group if no suggested rooms
+            self.suggested_rooms_group.set_visible(suggested_count > 0);
+        }
+
         /// Handle a paste action.
         pub(super) fn handle_paste_action(&self) {
             if self.visible_page() == ContentPage::RoomHistory {
@@ -281,7 +380,7 @@ mod imp {
         }
 
         /// All the header bars of the children of the content.
-        pub(super) fn header_bars(&self) -> [&adw::HeaderBar; 6] {
+        pub(super) fn header_bars(&self) -> [&adw::HeaderBar; 7] {
             [
                 &self.empty_page_header_bar,
                 self.room_history.header_bar(),
@@ -289,6 +388,7 @@ mod imp {
                 self.invite.header_bar(),
                 self.explore.header_bar(),
                 &self.verification_page_header_bar,
+                &self.space_details_header_bar,
             ]
         }
     }
@@ -312,7 +412,7 @@ impl Content {
     }
 
     /// All the header bars of the children of the content.
-    pub(crate) fn header_bars(&self) -> [&adw::HeaderBar; 6] {
+    pub(crate) fn header_bars(&self) -> [&adw::HeaderBar; 7] {
         self.imp().header_bars()
     }
 }

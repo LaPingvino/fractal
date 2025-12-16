@@ -21,6 +21,8 @@ pub enum SidebarSectionName {
     InviteRequest,
     /// The section for room invites.
     Invited,
+    /// The section for suggested rooms (unjoined rooms in current space).
+    Suggested,
     /// The section for favorite rooms.
     Favorite,
     /// The section for joined rooms without a tag.
@@ -56,6 +58,7 @@ impl SidebarSectionName {
             Self::VerificationRequest => return None,
             Self::InviteRequest => RoomCategory::Knocked,
             Self::Invited => RoomCategory::Invited,
+            Self::Suggested => return None,
             Self::Favorite => RoomCategory::Favorite,
             Self::Normal => RoomCategory::Normal,
             Self::LowPriority => RoomCategory::LowPriority,
@@ -69,7 +72,11 @@ impl SidebarSectionName {
     /// possible.
     pub(crate) fn into_target_room_category(self) -> Option<TargetRoomCategory> {
         let category = match self {
-            Self::Spaces | Self::VerificationRequest | Self::InviteRequest | Self::Invited => {
+            Self::Spaces
+            | Self::VerificationRequest
+            | Self::InviteRequest
+            | Self::Invited
+            | Self::Suggested => {
                 return None;
             }
             Self::Favorite => TargetRoomCategory::Favorite,
@@ -89,6 +96,7 @@ impl fmt::Display for SidebarSectionName {
             SidebarSectionName::VerificationRequest => gettext("Verifications"),
             SidebarSectionName::InviteRequest => gettext("Invite Requests"),
             SidebarSectionName::Invited => gettext("Invited"),
+            SidebarSectionName::Suggested => gettext("Suggested"),
             SidebarSectionName::Favorite => gettext("Favorites"),
             SidebarSectionName::Normal => gettext("Rooms"),
             SidebarSectionName::LowPriority => gettext("Low Priority"),

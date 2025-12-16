@@ -20,6 +20,8 @@ mod imp {
         room_category: Cell<RoomCategory>,
         /// The current space being viewed (set by the section).
         pub(in crate::session::sidebar_data::section) current_space: RefCell<Option<Room>>,
+        /// Whether search is currently active (disables space filtering).
+        pub(in crate::session::sidebar_data::section) is_search_active: Cell<bool>,
     }
 
     #[glib::object_subclass]
@@ -58,6 +60,11 @@ mod imp {
 
             if !category_matches {
                 return false;
+            }
+
+            // If search is active, skip space filtering to show all matching rooms
+            if self.is_search_active.get() {
+                return true;
             }
 
             // Apply space-based filtering

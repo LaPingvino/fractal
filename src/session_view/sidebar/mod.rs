@@ -146,9 +146,9 @@ mod imp {
                     // Handle Back button for space navigation
                     if let Some(icon_item) = item.downcast_ref::<SidebarIconItem>() {
                         if icon_item.item_type() == SidebarIconItemType::Back {
-                            debug!("Back button clicked - navigating back");
+                            debug!("Back button clicked - going back in navigation stack");
                             if let Some(list_model) = obj.list_model() {
-                                list_model.set_current_space(None::<Room>);
+                                list_model.go_back();
                             }
                             return;
                         }
@@ -156,12 +156,53 @@ mod imp {
 
                     // Handle room clicks - navigate into spaces or open rooms
                     if let Some(room) = item.downcast_ref::<Room>() {
+                        let was_search_active = obj
+                            .list_model()
+                            .map(|m| m.is_search_active())
+                            .unwrap_or(false);
+
+                        // If search is active, clear it first
+                        if was_search_active {
+                            // Clear search by setting search bar to inactive
+                            obj.imp().room_search.set_search_mode(false);
+                        }
+
                         if room.is_space() {
                             debug!("Navigating into space: {}", room.room_id());
                             if let Some(list_model) = obj.list_model() {
                                 list_model.set_current_space(Some(room.clone()));
                             }
                             return;
+                        } else {
+                            // For regular rooms, navigate to their parent space if they have one
+                            if let Some(parent_id) = room.parent_spaces().first() {
+                                if let Some(session) = obj.imp().session() {
+                                    if let Some(parent) = session.room_list().get(parent_id) {
+                                        if let Some(list_model) = obj.list_model() {
+                                            list_model.set_current_space(Some(parent.clone()));
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Room is orphaned, navigate to root
+                                if let Some(list_model) = obj.list_model() {
+                                    list_model.set_current_space(None::<Room>);
+                                }
+                            }
+
+                            // If we navigated from search, select the room after navigation
+                            if was_search_active {
+                                // Wait for the model to update, then find and select the room
+                                if let Some(session_view) =
+                                    obj.imp()
+                                        .obj()
+                                        .parent()
+                                        .and_downcast::<crate::session_view::SessionView>()
+                                {
+                                    session_view.select_room(room.clone());
+                                }
+                                return;
+                            }
                         }
                     }
 
@@ -300,6 +341,15 @@ mod imp {
                 )
                 .bind(&list_model.string_filter(), "search", None::<&glib::Object>);
                 self.expr_watch.replace(Some(expr_watch));
+
+                // Initialize to root view (no space selected) - defer to ensure sections are ready
+                glib::idle_add_local_once(clone!(
+                    #[weak]
+                    list_model,
+                    move || {
+                        list_model.set_current_space(None::<Room>);
+                    }
+                ));
             }
 
             self.list_model.set(list_model);

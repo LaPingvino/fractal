@@ -101,6 +101,20 @@ menu room_row_menu {
 
   section {
     item {
+      label: _("Add to Current Space");
+      action: "room-row.link-to-space";
+      hidden-when: "action-missing";
+    }
+
+    item {
+      label: _("Remove from Current Space");
+      action: "room-row.unlink-from-space";
+      hidden-when: "action-missing";
+    }
+  }
+
+  section {
+    item {
       label: _("_Leave Room");
       action: "room-row.leave";
       hidden-when: "action-missing";

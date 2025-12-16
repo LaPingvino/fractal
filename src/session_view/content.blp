@@ -76,5 +76,79 @@ template $Content: Adw.NavigationPage {
         content: $IdentityVerificationView identity_verification_widget {};
       };
     }
+
+    Gtk.StackPage {
+      name: "space-details";
+      title: _("Space Details");
+
+      child: Adw.ToolbarView space_details_page {
+        [top]
+        Adw.HeaderBar space_details_header_bar {
+          show-title: false;
+        }
+
+        content: Gtk.ScrolledWindow {
+          vexpand: true;
+          hexpand: true;
+
+          Adw.Clamp {
+            maximum-size: 800;
+            tightening-threshold: 600;
+
+            Gtk.Box {
+              orientation: vertical;
+              margin-top: 24;
+              margin-bottom: 24;
+              margin-start: 12;
+              margin-end: 12;
+              spacing: 24;
+
+              Gtk.Box space_header {
+                orientation: vertical;
+                spacing: 12;
+
+                Gtk.Box {
+                  spacing: 12;
+                  halign: center;
+
+                  Gtk.Image {
+                    icon-name: "folder-symbolic";
+                    pixel-size: 64;
+                    styles ["dim-label"]
+                  }
+                }
+
+                Gtk.Label space_name_label {
+                  label: _("Space");
+                  wrap: true;
+                  justify: center;
+                  styles ["title-1"]
+                }
+              }
+
+              Adw.PreferencesGroup child_rooms_group {
+                title: _("Rooms in This Space");
+                description: _("Rooms you've joined that are in this space");
+
+                Gtk.ListBox child_rooms_list {
+                  selection-mode: none;
+                  styles ["boxed-list"]
+                }
+              }
+
+              Adw.PreferencesGroup suggested_rooms_group {
+                title: _("Suggested Rooms");
+                description: _("Rooms in this space you haven't joined yet");
+
+                Gtk.ListBox suggested_rooms_list {
+                  selection-mode: none;
+                  styles ["boxed-list"]
+                }
+              }
+            }
+          }
+        };
+      };
+    }
   };
 }
