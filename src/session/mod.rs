@@ -27,6 +27,7 @@ mod room_list;
 mod security;
 mod session_settings;
 mod sidebar_data;
+pub(crate) mod space_hierarchy;
 mod user;
 mod user_sessions_list;
 mod verification;
