@@ -182,26 +182,6 @@ fn remove_room_cleans_all_edges() {
 // ---------------------------------------------------------------
 
 #[test]
-fn transitive_children_handles_cycle() {
-    let h = SpaceHierarchy::new();
-    let space_a = id("!a:example.com");
-    let space_b = id("!b:example.com");
-    let room = id("!room:example.com");
-
-    // A -> B -> A (cycle), B -> room
-    h.add_edge(&space_a, &space_b);
-    h.add_edge(&space_b, &space_a);
-    h.add_edge(&space_b, &room);
-
-    let children = h.transitive_children_of(&space_a);
-    assert!(children.contains(&space_b));
-    assert!(children.contains(&room));
-    // space_a itself should not be in its own transitive children,
-    // but the cycle shouldn't cause a hang.
-    assert!(children.contains(&space_a));
-}
-
-#[test]
 fn propagate_delta_handles_cycle() {
     let h = SpaceHierarchy::new();
     let space_a = id("!a:example.com");
@@ -219,37 +199,6 @@ fn propagate_delta_handles_cycle() {
     let changed = h.propagate_delta(&space_a, 2);
     // space_b is a parent of space_a, so it should be affected.
     assert!(changed.contains(&space_b));
-}
-
-// ---------------------------------------------------------------
-// Transitive children
-// ---------------------------------------------------------------
-
-#[test]
-fn transitive_children_deep_nesting() {
-    let h = SpaceHierarchy::new();
-    let s1 = id("!s1:example.com");
-    let s2 = id("!s2:example.com");
-    let s3 = id("!s3:example.com");
-    let room = id("!room:example.com");
-
-    // s1 -> s2 -> s3 -> room
-    h.add_edge(&s1, &s2);
-    h.add_edge(&s2, &s3);
-    h.add_edge(&s3, &room);
-
-    let children = h.transitive_children_of(&s1);
-    assert!(children.contains(&s2));
-    assert!(children.contains(&s3));
-    assert!(children.contains(&room));
-    assert_eq!(children.len(), 3);
-}
-
-#[test]
-fn transitive_children_empty_space() {
-    let h = SpaceHierarchy::new();
-    let space = id("!space:example.com");
-    assert!(h.transitive_children_of(&space).is_empty());
 }
 
 // ---------------------------------------------------------------
@@ -396,27 +345,3 @@ fn revision_does_not_bump_on_count_updates() {
     assert_eq!(h.revision(), rev);
 }
 
-// ---------------------------------------------------------------
-// Orphaned rooms helper
-// ---------------------------------------------------------------
-
-#[test]
-fn orphaned_rooms() {
-    let h = SpaceHierarchy::new();
-    let space = id("!space:example.com");
-    let room_a = id("!a:example.com");
-    let room_b = id("!b:example.com");
-
-    h.add_edge(&space, &room_a);
-
-    let all = vec![space.clone(), room_a.clone(), room_b.clone()];
-    let orphans = h.orphaned_rooms(all.iter());
-
-    // space itself has no parent, so it's orphaned.
-    // room_b has no parent.
-    // room_a has a parent (space).
-    assert!(orphans.contains(&space));
-    assert!(orphans.contains(&room_b));
-    assert!(!orphans.contains(&room_a));
-    assert_eq!(orphans.len(), 2);
-}

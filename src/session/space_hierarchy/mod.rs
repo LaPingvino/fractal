@@ -215,38 +215,6 @@ impl SpaceHierarchy {
             .unwrap_or_default()
     }
 
-    /// All rooms with no parents from the given set of room IDs.
-    pub fn orphaned_rooms<'a>(
-        &self,
-        all_room_ids: impl Iterator<Item = &'a OwnedRoomId>,
-    ) -> Vec<OwnedRoomId> {
-        let g = self.inner.borrow();
-        all_room_ids
-            .filter(|id| {
-                let room_id: &RoomId = id.as_ref();
-                g.parents.get(room_id).map_or(true, HashSet::is_empty)
-            })
-            .cloned()
-            .collect()
-    }
-
-    /// All transitive descendants of a space. Handles cycles.
-    pub fn transitive_children_of(&self, space_id: &RoomId) -> HashSet<OwnedRoomId> {
-        let g = self.inner.borrow();
-        let mut result = HashSet::new();
-        let mut stack = vec![space_id.to_owned()];
-        while let Some(current) = stack.pop() {
-            if let Some(children) = g.children.get(&*current) {
-                for child in children {
-                    if result.insert(child.clone()) {
-                        stack.push(child.clone());
-                    }
-                }
-            }
-        }
-        result
-    }
-
     // ---------------------------------------------------------------
     // Notification counts
     // ---------------------------------------------------------------
