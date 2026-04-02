@@ -46,6 +46,9 @@ pub(crate) struct SpaceHierarchy {
     /// structural change. Consumers (filters, UI) can compare their
     /// last-seen revision to decide whether to re-query.
     revision: Cell<u64>,
+    /// Whether a filter re-evaluation is already scheduled.
+    /// Used to coalesce multiple relationship loads into one notification.
+    filter_notify_pending: Cell<bool>,
 }
 
 impl SpaceHierarchy {
@@ -56,6 +59,16 @@ impl SpaceHierarchy {
     /// Current revision number.
     pub fn revision(&self) -> u64 {
         self.revision.get()
+    }
+
+    /// Whether a filter notification is pending.
+    pub fn filter_notify_pending(&self) -> bool {
+        self.filter_notify_pending.get()
+    }
+
+    /// Set the filter notification pending flag.
+    pub fn set_filter_notify_pending(&self, pending: bool) {
+        self.filter_notify_pending.set(pending);
     }
 
     // ---------------------------------------------------------------

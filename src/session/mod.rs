@@ -75,7 +75,7 @@ pub enum SessionState {
 }
 
 mod imp {
-    use std::cell::{Cell, OnceCell, RefCell};
+    use std::{cell::{Cell, OnceCell, RefCell}, rc::Rc};
 
     use super::*;
 
@@ -117,6 +117,8 @@ mod imp {
         /// Information about security for this session.
         #[property(get)]
         security: SessionSecurity,
+        /// The centralized space hierarchy graph.
+        space_hierarchy: Rc<space_hierarchy::SpaceHierarchy>,
         /// The cache for remote data.
         remote_cache: OnceCell<RemoteCache>,
         session_changes_handle: RefCell<Option<AbortHandle>>,
@@ -206,6 +208,11 @@ mod imp {
                     SidebarListModel::new(&item_list)
                 })
                 .clone()
+        }
+
+        /// The centralized space hierarchy.
+        pub(super) fn space_hierarchy(&self) -> &Rc<space_hierarchy::SpaceHierarchy> {
+            &self.space_hierarchy
         }
 
         /// The room list of this session.
@@ -798,6 +805,11 @@ impl Session {
     /// The room list of this session.
     pub(crate) fn room_list(&self) -> RoomList {
         self.imp().room_list()
+    }
+
+    /// The centralized space hierarchy.
+    pub(crate) fn space_hierarchy(&self) -> &std::rc::Rc<space_hierarchy::SpaceHierarchy> {
+        self.imp().space_hierarchy()
     }
 
     /// The verification list of this session.

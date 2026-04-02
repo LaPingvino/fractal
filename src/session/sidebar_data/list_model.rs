@@ -1,5 +1,4 @@
 use gtk::{glib, glib::clone, prelude::*, subclass::prelude::*};
-use tracing::debug;
 
 use super::SidebarItemList;
 use crate::{
@@ -173,11 +172,7 @@ mod imp {
             }
 
             if let Some(s) = &space {
-                debug!("Navigating into space: {}", s.room_id());
-                // Load suggested rooms for this space
                 s.load_suggested_rooms();
-            } else {
-                debug!("Navigating to root level");
             }
 
             self.current_space.replace(space);

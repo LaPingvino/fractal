@@ -7,8 +7,8 @@ use super::{
 };
 use crate::session::{RoomCategory, RoomList, VerificationList};
 
-/// The number of top-level items in the sidebar (including back button).
-const TOP_LEVEL_ITEMS_COUNT: usize = 11;
+/// The number of top-level items in the sidebar (including back button and space settings button).
+const TOP_LEVEL_ITEMS_COUNT: usize = 12;
 
 mod imp {
     use std::cell::OnceCell;
@@ -54,10 +54,16 @@ mod imp {
             let back_button = SidebarItem::new(SidebarIconItem::new(SidebarIconItemType::Back));
             back_button.set_visible(false);
 
+            // Create space settings button and hide it initially (shown only when in a space)
+            let space_settings_button =
+                SidebarItem::new(SidebarIconItem::new(SidebarIconItemType::SpaceSettings));
+            space_settings_button.set_visible(false);
+
             let list = self.list.get_or_init(|| {
                 [
                     SidebarItem::new(SidebarIconItem::new(SidebarIconItemType::Explore)),
                     back_button,
+                    space_settings_button,
                     SidebarItem::new(SidebarSection::new(SidebarSectionName::Spaces, &room_list)),
                     SidebarItem::new(SidebarSection::new(
                         SidebarSectionName::VerificationRequest,
@@ -187,7 +193,7 @@ impl SidebarItemList {
         &self,
         category: RoomCategory,
     ) -> Option<SidebarSection> {
-        const FIRST_ROOM_SECTION_INDEX: usize = 2; // After Explore and Back button
+        const FIRST_ROOM_SECTION_INDEX: usize = 3; // After Explore, Back button, and Space Settings button
 
         let index = match category {
             RoomCategory::Space => FIRST_ROOM_SECTION_INDEX,
@@ -209,16 +215,20 @@ impl SidebarItemList {
 
     /// Notify all sections that the current space has changed.
     pub(crate) fn notify_current_space_changed(&self) {
-        // Update back button visibility (position 1 in the list)
-        if let Some(back_item) = self.imp().list().get(1) {
-            // Get current space state from the session
-            let room_list = self.room_list();
-            if let Some(session) = room_list.session() {
-                let sidebar = session.sidebar_list_model();
-                let is_in_space = sidebar.current_space().is_some();
+        // Get current space state from the session
+        let room_list = self.room_list();
+        if let Some(session) = room_list.session() {
+            let sidebar = session.sidebar_list_model();
+            let is_in_space = sidebar.current_space().is_some();
 
-                // Show back button only when inside a space
+            // Update back button visibility (position 1 in the list)
+            if let Some(back_item) = self.imp().list().get(1) {
                 back_item.set_visible(is_in_space);
+            }
+
+            // Update space settings button visibility (position 2 in the list)
+            if let Some(space_settings_item) = self.imp().list().get(2) {
+                space_settings_item.set_visible(is_in_space);
             }
         }
 

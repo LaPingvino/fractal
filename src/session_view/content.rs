@@ -8,6 +8,7 @@ use crate::{
     session::{
         IdentityVerification, Room, RoomCategory, Session, SidebarIconItem, SidebarIconItemType,
     },
+    spawn,
     utils::BoundObject,
 };
 
@@ -40,6 +41,7 @@ impl ContentPage {
             Self::Invite => "invite",
             Self::Explore => "explore",
             Self::Verification => "verification",
+            Self::SpaceDetails => "space-details",
         }
     }
 
@@ -54,6 +56,7 @@ impl ContentPage {
             "invite" => Self::Invite,
             "explore" => Self::Explore,
             "verification" => Self::Verification,
+            "space-details" => Self::SpaceDetails,
             _ => panic!("Unknown ContentPage: {name}"),
         }
     }
@@ -274,7 +277,6 @@ mod imp {
                         self.set_visible_page(ContentPage::Invite);
                     }
                     RoomCategory::Space => {
-                        // Show space management page
                         self.update_space_details(room);
                         self.set_visible_page(ContentPage::SpaceDetails);
                     }
@@ -346,6 +348,7 @@ mod imp {
             let suggested_count = suggested.len();
 
             for chunk in suggested {
+                let room_id = chunk.summary.room_id.clone();
                 let row = adw::ActionRow::builder()
                     .title(
                         &chunk
@@ -364,6 +367,32 @@ mod imp {
 
                 // Make it look different (dimmed) since it's not joined
                 row.add_css_class("dim-label");
+
+                // Connect click handler to join the room
+                row.connect_activated(clone!(
+                    #[weak(rename_to = imp)]
+                    self,
+                    #[strong]
+                    room_id,
+                    move |_| {
+                        if let Some(session) = imp.session.upgrade() {
+                            spawn!(clone!(
+                                #[weak]
+                                session,
+                                #[strong]
+                                room_id,
+                                async move {
+                                    let room_list = session.room_list();
+                                    if let Err(error) =
+                                        room_list.join_by_id_or_alias(room_id.into(), vec![]).await
+                                    {
+                                        tracing::error!("Failed to join room: {error}");
+                                    }
+                                }
+                            ));
+                        }
+                    }
+                ));
 
                 self.suggested_rooms_list.append(&row);
             }

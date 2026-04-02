@@ -15,6 +15,8 @@ pub enum SidebarIconItemType {
     Forget,
     /// Navigate back to parent space.
     Back,
+    /// Show space settings and suggested rooms.
+    SpaceSettings,
 }
 
 impl SidebarIconItemType {
@@ -24,6 +26,7 @@ impl SidebarIconItemType {
             Self::Explore => "explore-symbolic",
             Self::Forget => "user-trash-symbolic",
             Self::Back => "go-previous-symbolic",
+            Self::SpaceSettings => "preferences-system-symbolic",
         }
     }
 }
@@ -34,6 +37,7 @@ impl fmt::Display for SidebarIconItemType {
             Self::Explore => gettext("Explore"),
             Self::Forget => gettext("Forget Room"),
             Self::Back => gettext("Back"),
+            Self::SpaceSettings => gettext("Space Settings"),
         };
 
         f.write_str(&label)
@@ -100,6 +104,7 @@ impl SidebarIconItem {
             SidebarIconItemType::Explore => true,
             SidebarIconItemType::Forget => source_category == Some(RoomCategory::Left),
             SidebarIconItemType::Back => false, // Back button is not a drop target
+            SidebarIconItemType::SpaceSettings => false, // Space settings is not a drop target
         }
     }
 }

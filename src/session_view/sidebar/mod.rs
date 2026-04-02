@@ -4,7 +4,7 @@ use gtk::{
     gio, glib,
     glib::{clone, closure_local},
 };
-use tracing::{debug, error};
+use tracing::error;
 
 mod icon_item_row;
 mod room_row;
@@ -146,9 +146,25 @@ mod imp {
                     // Handle Back button for space navigation
                     if let Some(icon_item) = item.downcast_ref::<SidebarIconItem>() {
                         if icon_item.item_type() == SidebarIconItemType::Back {
-                            debug!("Back button clicked - going back in navigation stack");
                             if let Some(list_model) = obj.list_model() {
                                 list_model.go_back();
+                            }
+                            return;
+                        }
+
+                        // Handle Space Settings button
+                        if icon_item.item_type() == SidebarIconItemType::SpaceSettings {
+                            if let Some(list_model) = obj.list_model() {
+                                if let Some(space) = list_model.current_space() {
+                                    list_model.go_back();
+
+                                    if let Some(session_view) =
+                                        obj.ancestor(crate::session_view::SessionView::static_type())
+                                            .and_downcast::<crate::session_view::SessionView>()
+                                    {
+                                        session_view.select_room(space.clone());
+                                    }
+                                }
                             }
                             return;
                         }
@@ -168,7 +184,6 @@ mod imp {
                         }
 
                         if room.is_space() {
-                            debug!("Navigating into space: {}", room.room_id());
                             if let Some(list_model) = obj.list_model() {
                                 list_model.set_current_space(Some(room.clone()));
                             }
@@ -192,16 +207,13 @@ mod imp {
 
                             // If we navigated from search, select the room after navigation
                             if was_search_active {
-                                // Wait for the model to update, then find and select the room
                                 if let Some(session_view) =
-                                    obj.imp()
-                                        .obj()
-                                        .parent()
+                                    obj.ancestor(crate::session_view::SessionView::static_type())
                                         .and_downcast::<crate::session_view::SessionView>()
                                 {
                                     session_view.select_room(room.clone());
+                                    return;
                                 }
-                                return;
                             }
                         }
                     }

@@ -64,11 +64,6 @@ template $SidebarRoomRow: Adw.Bin {
           halign: end;
           valign: center;
           yalign: 1.0;
-          label: bind $ternary_u64(
-            template.room as <$Room>.is-space,
-            template.room as <$Room>.recursive-notification-count,
-            template.room as <$Room>.notification-count
-          ) as <string>;
 
           styles [
             "notification-count",
