@@ -52,14 +52,6 @@ pub(crate) struct SpaceHierarchy {
 }
 
 impl SpaceHierarchy {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Current revision number.
-    pub fn revision(&self) -> u64 {
-        self.revision.get()
-    }
 
     /// Whether a filter notification is pending.
     pub fn filter_notify_pending(&self) -> bool {
@@ -111,66 +103,6 @@ impl SpaceHierarchy {
             self.bump_revision();
         }
         changed
-    }
-
-    /// Batch-set all children for a space, replacing any previous set.
-    /// More efficient than N individual `add_edge` calls.
-    pub fn set_children(&self, space_id: &RoomId, children: HashSet<OwnedRoomId>) {
-        let mut g = self.inner.borrow_mut();
-
-        // Remove old reverse edges.
-        let old_children: Vec<_> = g
-            .children
-            .get(space_id)
-            .map(|s| s.iter().cloned().collect())
-            .unwrap_or_default();
-        for old_child in &old_children {
-            if let Some(parents) = g.parents.get_mut(old_child) {
-                parents.remove(space_id);
-            }
-        }
-
-        // Insert new reverse edges.
-        for child in &children {
-            g.parents.entry(child.clone()).or_default().insert(space_id.to_owned());
-        }
-
-        g.children.insert(space_id.to_owned(), children);
-        Self::invalidate_counts_up(&mut g, space_id);
-        drop(g);
-        self.bump_revision();
-    }
-
-    /// Remove all edges involving a room (e.g. when it is forgotten).
-    pub fn remove_room(&self, room_id: &RoomId) {
-        let mut g = self.inner.borrow_mut();
-        let mut changed = false;
-
-        if let Some(parent_set) = g.parents.remove(room_id) {
-            for parent in &parent_set {
-                if let Some(children) = g.children.get_mut(parent) {
-                    children.remove(room_id);
-                }
-            }
-            changed = true;
-        }
-
-        if let Some(child_set) = g.children.remove(room_id) {
-            for child in &child_set {
-                if let Some(parents) = g.parents.get_mut(child) {
-                    parents.remove(room_id);
-                }
-            }
-            changed = true;
-        }
-
-        g.recursive_counts.remove(room_id);
-        g.suggested.remove(room_id);
-
-        if changed {
-            drop(g);
-            self.bump_revision();
-        }
     }
 
     // ---------------------------------------------------------------
