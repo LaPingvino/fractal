@@ -84,7 +84,9 @@ template $Content: Adw.NavigationPage {
       child: Adw.ToolbarView space_details_page {
         [top]
         Adw.HeaderBar space_details_header_bar {
-          show-title: false;
+          title-widget: Adw.WindowTitle space_details_title {
+            title: _("Space Overview");
+          };
         }
 
         content: Gtk.ScrolledWindow {

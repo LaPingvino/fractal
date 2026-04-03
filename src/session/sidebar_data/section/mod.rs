@@ -297,6 +297,17 @@ impl SidebarSection {
 
     /// Notify this section that the current space has changed.
     pub(crate) fn notify_current_space_changed(&self) {
+        // Only sections with room categories affected by space filtering
+        // need re-evaluation. Skip sections that show the same content
+        // regardless of which space is selected.
+        match self.name() {
+            SidebarSectionName::Favorite
+            | SidebarSectionName::Normal
+            | SidebarSectionName::LowPriority
+            | SidebarSectionName::Spaces => {}
+            _ => return,
+        }
+
         // Get the current space from the global sidebar state
         let current_space = if let Some(room_list) = self.model().downcast_ref::<RoomList>() {
             if let Some(session) = room_list.session() {

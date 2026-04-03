@@ -99,6 +99,8 @@ mod imp {
         #[template_child]
         space_details_header_bar: TemplateChild<adw::HeaderBar>,
         #[template_child]
+        space_details_title: TemplateChild<adw::WindowTitle>,
+        #[template_child]
         space_name_label: TemplateChild<gtk::Label>,
         #[template_child]
         child_rooms_list: TemplateChild<gtk::ListBox>,
@@ -300,8 +302,10 @@ mod imp {
 
         /// Update the space details page with information about the given space.
         fn update_space_details(&self, space: &Room) {
-            // Set the space name
-            self.space_name_label.set_text(&space.display_name());
+            // Set the space name in header and body
+            let name = space.display_name();
+            self.space_details_title.set_subtitle(&name);
+            self.space_name_label.set_text(&name);
 
             // Clear existing lists
             while let Some(child) = self.child_rooms_list.first_child() {

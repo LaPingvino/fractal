@@ -1,4 +1,5 @@
 use adw::{prelude::*, subclass::prelude::*};
+use gettextrs::gettext;
 use gtk::glib;
 
 use crate::session::{SidebarIconItem, SidebarIconItemType};
@@ -50,11 +51,16 @@ mod imp {
             }
             let obj = self.obj();
 
-            if icon_item
-                .as_ref()
-                .is_some_and(|i| i.item_type() == SidebarIconItemType::Forget)
-            {
-                obj.add_css_class("forget");
+            if let Some(ref item) = icon_item {
+                match item.item_type() {
+                    SidebarIconItemType::Forget => obj.add_css_class("forget"),
+                    SidebarIconItemType::SpaceSettings => {
+                        obj.update_property(&[gtk::accessible::Property::Description(
+                            &gettext("View rooms and join suggested rooms in this space"),
+                        )]);
+                    }
+                    _ => {}
+                }
             } else {
                 obj.remove_css_class("forget");
             }
