@@ -1,4 +1,5 @@
 use adw::{prelude::*, subclass::prelude::*};
+use gettextrs::gettext;
 use gtk::{glib, glib::clone};
 
 use super::{Explore, Invite, InviteRequest, RoomHistory};
@@ -335,6 +336,28 @@ mod imp {
                     icon.add_css_class("dim-label");
                     row.add_prefix(&icon);
 
+                    // Navigate to the room when activated
+                    row.connect_activated(clone!(
+                        #[weak(rename_to = imp)]
+                        self,
+                        #[strong]
+                        child_room,
+                        move |_| {
+                            if let Some(session_view) = imp
+                                .obj()
+                                .ancestor(crate::session_view::SessionView::static_type())
+                                .and_downcast::<crate::session_view::SessionView>()
+                            {
+                                session_view.select_room(child_room.clone());
+                            }
+                        }
+                    ));
+
+                    // Add a navigation arrow for accessibility
+                    let arrow = gtk::Image::from_icon_name("go-next-symbolic");
+                    arrow.add_css_class("dim-label");
+                    row.add_suffix(&arrow);
+
                     self.child_rooms_list.append(&row);
                     child_count += 1;
                 }
@@ -349,50 +372,64 @@ mod imp {
 
             for chunk in suggested {
                 let room_id = chunk.summary.room_id.clone();
+                let room_name = chunk
+                    .summary
+                    .name
+                    .unwrap_or_else(|| chunk.summary.room_id.to_string());
                 let row = adw::ActionRow::builder()
-                    .title(
-                        &chunk
-                            .summary
-                            .name
-                            .unwrap_or_else(|| chunk.summary.room_id.to_string()),
-                    )
+                    .title(&room_name)
                     .subtitle(&chunk.summary.topic.unwrap_or_default())
-                    .activatable(true)
                     .build();
 
-                // Add a join icon
-                let icon = gtk::Image::from_icon_name("list-add-symbolic");
+                // Add a room type icon as prefix
+                let icon = gtk::Image::from_icon_name("chat-symbolic");
                 icon.add_css_class("dim-label");
                 row.add_prefix(&icon);
 
-                // Make it look different (dimmed) since it's not joined
-                row.add_css_class("dim-label");
+                // Add a Join button as suffix
+                let join_button = gtk::Button::builder()
+                    .label(&gettext("Join"))
+                    .valign(gtk::Align::Center)
+                    .build();
+                join_button.add_css_class("suggested-action");
+                join_button.add_css_class("pill");
 
-                // Connect click handler to join the room
-                row.connect_activated(clone!(
+                join_button.connect_clicked(clone!(
                     #[weak(rename_to = imp)]
                     self,
                     #[strong]
                     room_id,
-                    move |_| {
+                    move |button| {
+                        button.set_sensitive(false);
                         if let Some(session) = imp.session.upgrade() {
                             spawn!(clone!(
                                 #[weak]
                                 session,
+                                #[weak]
+                                button,
                                 #[strong]
                                 room_id,
                                 async move {
                                     let room_list = session.room_list();
-                                    if let Err(error) =
-                                        room_list.join_by_id_or_alias(room_id.into(), vec![]).await
+                                    match room_list
+                                        .join_by_id_or_alias(room_id.into(), vec![])
+                                        .await
                                     {
-                                        tracing::error!("Failed to join room: {error}");
+                                        Ok(_) => {
+                                            button.set_label(&gettext("Joined"));
+                                        }
+                                        Err(error) => {
+                                            tracing::error!("Failed to join room: {error}");
+                                            button.set_sensitive(true);
+                                        }
                                     }
                                 }
                             ));
                         }
                     }
                 ));
+
+                row.add_suffix(&join_button);
 
                 self.suggested_rooms_list.append(&row);
             }
