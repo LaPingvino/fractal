@@ -176,12 +176,12 @@ mod imp {
             };
 
             let result = match cross_signing_reset_handle.auth_type().clone() {
-                CrossSigningResetAuthType::Uiaa(uiaa_info) => {
+                CrossSigningResetAuthType::Uiaa(info) => {
                     let cross_signing_reset_handle = Arc::new(cross_signing_reset_handle);
 
-                    self.perform_uiaa(uiaa_info, parent, move |auth_data| {
+                    self.perform_uiaa(info.auth_info().clone(), parent, move |auth_data| {
                         let cross_signing_reset_handle = cross_signing_reset_handle.clone();
-                        async move { cross_signing_reset_handle.auth(Some(auth_data)).await }
+                        async move { cross_signing_reset_handle.auth(auth_data).await }
                     })
                     .await
                 }
@@ -193,8 +193,9 @@ mod imp {
                     self.show_page(page.upcast(), &default_widget, parent);
 
                     // The `CrossSigningResetHandle` will poll the endpoint until it succeeds.
-                    let handle =
-                        spawn_tokio!(async move { cross_signing_reset_handle.auth(None).await });
+                    let handle = spawn_tokio!(async move {
+                        cross_signing_reset_handle.auth(info.as_auth_data()).await
+                    });
                     self.await_tokio_task(handle).await
                 }
             };
