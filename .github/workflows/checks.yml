@@ -1,0 +1,59 @@
+# Fractal's own code checks (.gitlab-ci/check.yml), run on the spaces branch so
+# the work is held to the project's standards: their pre-commit checker
+# (nightly rustfmt, typos and the rest of hooks/checks), clippy with warnings
+# as errors plus blueprint and meson formatting inside the Flatpak SDK, and
+# the REUSE licence check.
+name: Checks
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch to check (default: spaces)"
+        required: false
+  schedule:
+    - cron: "11 4 * * *"
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || 'spaces' }}
+      - name: Fractal's pre-commit checks on its pinned nightly
+        run: |
+          v=$(sed -n 's/^ *RUST_NIGHTLY_VERSION: "\(.*\)"/\1/p' .gitlab-ci.yml)
+          docker run --rm -v "$PWD":/src -w /src "rustlang/rust:nightly-slim-$v" sh -c \
+            'apt-get update && apt-get install -y --no-install-recommends git && git config --global --add safe.directory /src && RUST_BACKTRACE=1 cargo run --manifest-path hooks/checks/Cargo.toml -- --verbose --force-install --cargo-binstall'
+
+  flatpak-checks:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || 'spaces' }}
+      - name: The stable GNOME runtime, as the build uses
+        run: |
+          m=build-aux/org.gnome.Fractal.Devel.json
+          jq '."runtime-version" = "51"' "$m" > "$m.tmp" && mv "$m.tmp" "$m"
+      - name: Clippy (warnings are errors), blueprint and meson formatting
+        run: |
+          m=build-aux/org.gnome.Fractal.Devel.json
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak-builder --user --install-deps-from=flathub --keep-build-dirs --disable-rofiles-fuse --stop-at=fractal flatpak_app "$m"
+          echo "cargo clippy --all-targets -- -D warnings" | flatpak-builder --disable-rofiles-fuse --build-shell=fractal flatpak_app "$m"
+          echo "blueprint-compiler format ../src" | flatpak-builder --disable-rofiles-fuse --build-shell=fractal flatpak_app "$m"
+          echo "meson format -qr .." | flatpak-builder --disable-rofiles-fuse --build-shell=fractal flatpak_app "$m"
+
+  reuse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || 'spaces' }}
+      - name: REUSE licence check
+        run: docker run --rm -v "$PWD":/data fsfe/reuse:latest lint
