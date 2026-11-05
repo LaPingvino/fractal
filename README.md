@@ -102,14 +102,10 @@ can do — and I've had to tell my blind friend, who this was made for, that the
 unless that stance changes.
 
 That is a pity, because this is exactly where AI helps most: with the things a developer is not good at.
-Linus Torvalds says it about his own hobby project
-[AudioNoise](https://github.com/torvalds/AudioNoise): "the python visualizer tool has been basically written by
-vibe-coding. I know more about analog filters — and that's not saying much — than I do about python. […]
-I cut out the middle-man — me — and just used Google Antigravity to do the audio sample visualizer." That was
-in January 2026, with the models of that moment; they have become a good deal better since. By October 2026,
-on stage at Open Source Summit Europe, he said: "I used to think it was just not very good — but now I'm at the
-point where I actually really like using AI." He had used it to recreate one of his guitar pedals in Java —
-"I don't do Java. I do kernels." ([XDA](https://www.xda-developers.com/as-the-linux-community-debates-llm-generated-content-rules-linus-torvalds-says-he-really-likes-using-ai/),
+Linus Torvalds, on stage at Open Source Summit Europe in October 2026: "I used to think it was just not very
+good — but now I'm at the point where I actually really like using AI." He had used it to recreate one of his
+guitar pedals in Java — "I don't do Java. I do kernels."
+([XDA](https://www.xda-developers.com/as-the-linux-community-debates-llm-generated-content-rules-linus-torvalds-says-he-really-likes-using-ai/),
 [The Next Web](https://thenextweb.com/news/torvalds-ai-assisted-by-tag-utterly-stupid-open-source-summit))
 
 For me that is accessibility, and things like documentation: work that matters a great deal to the people who
