@@ -44,9 +44,15 @@ reader:
 - **[Wally](https://github.com/LaPingvino/wally)**, an accessible Matrix web client (a fork of Cinny): ARIA
   roles and live regions throughout, keyboard shortcuts for navigation and for moving through unread rooms,
   screen-reader labels on every login and settings form, notification sounds, and a tree-view room list.
-- **[atspi](https://github.com/LaPingvino/atspi)**, Linux screen reader support (AT-SPI2) for Go programs
-  without C, so Go toolkits can talk to Orca; a bridge for the [Fyne](https://fyne.io) toolkit is being
-  written in a fork of Fyne, alongside fixes already contributed to Fyne itself.
+- **Screen readers for the [Fyne](https://fyne.io) toolkit** (Go), on every desktop, in a
+  [fork of Fyne](https://github.com/LaPingvino/fyne/tree/linux-a11y): one shared accessibility bridge, with
+  AT-SPI2 for Orca on Linux (through [atspi](https://github.com/LaPingvino/atspi), written for it in pure
+  Go), UI Automation on Windows for screen readers and braille displays, and NSAccessibility for VoiceOver on
+  macOS. With it come accessible names (set by the application, or worked out automatically), a sensible
+  reading order, and keyboard use where it was missing — tab bars, Escape for dialogs and pop-ups.
+  **[Accolade](https://github.com/LaPingvino/accolade)**, a screenplay editor, is the first application built
+  on it, with a test in its CI that reads Accolade on Windows the way a screen reader does. Smaller fixes from
+  the same work are already part of Fyne itself.
 
 ## Install
 
