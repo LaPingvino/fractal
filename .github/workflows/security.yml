@@ -1,0 +1,37 @@
+# Security updates ahead of upstream: updates the crates named below in the
+# spaces branch's Cargo.lock to their latest compatible versions (the ones
+# cargo-deny's advisories ask for) and hands back the change as a patch
+# artifact, to be reviewed and committed by hand as one separate commit —
+# nothing is pushed from here.
+name: Security updates
+
+on:
+  workflow_dispatch:
+    inputs:
+      crates:
+        description: "Crates to update (space-separated)"
+        required: true
+        default: "pulldown-cmark"
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: spaces
+      - name: cargo update -p … (latest compatible versions)
+        env:
+          CRATES: ${{ github.event.inputs.crates }}
+        run: |
+          args=""
+          for c in $CRATES; do args="$args -p $c"; done
+          docker run --rm -v "$PWD":/src -w /src rust:latest sh -c "cargo update $args 2>&1"
+          git config --global --add safe.directory "$PWD"
+          git diff > security.patch
+          git diff --stat
+          grep -A2 '^ name = "pulldown-cmark"' Cargo.lock || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: security-patch
+          path: security.patch
