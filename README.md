@@ -1,10 +1,39 @@
-# Fractal with spaces
+# Fractal with spaces — made for screen reader users
 
 This is a build of [Fractal](https://gitlab.gnome.org/World/fractal), the GNOME Matrix client, with
-extra support for Matrix spaces: spaces in the sidebar, a space page, and work on how both read with a
-screen reader.
+support for Matrix spaces, built first of all for people who use their computer through a screen reader.
 
-It installs next to the regular Fractal as "Fractal (Development)", so both can be used.
+## Who this is for, and why
+
+It was made for a blind friend of the author who uses Matrix with a screen reader (Orca on the Linux
+desktop). For him, spaces are not a nice extra: they are how large communities are organised. Without them,
+every room he has joined arrives as one long flat list that a screen reader reads out item by item, and
+finding the rooms of one community — or the rooms it suggests joining — means listening through everything
+else first. Few Matrix clients work well with a screen reader on the Linux desktop, and Fractal, being a GTK
+app that speaks to Orca through the desktop's accessibility layer, is one of the better starting points. What
+it lacked was spaces.
+
+What this build changes, with the screen reader in mind:
+
+- **Spaces in the sidebar**, with each space's rooms grouped under it, so a community can be reached in a few
+  steps instead of searched for in the full list.
+- **Every space icon is named**: the sidebar's space icons carry their space's name as a tooltip and
+  label, and the purely decorative space icon is hidden from the screen reader, so it no longer
+  announces an unnamed image.
+- **Unread counts that add up**: a space shows the unread messages of all its rooms, including rooms in
+  sub-spaces, so you can tell from the space alone whether anything needs attention.
+- **A space page** that says what it is: the space's name in the header, a settings button described for the
+  screen reader ("View rooms and join suggested rooms in this space"), the rooms of the space listed with a
+  clear way to open each one.
+- **Joining suggested rooms with a real button**: instead of rows that have to be activated in a way you would
+  have to know about, each suggested room has a Join button, which says "Joined" once it worked and comes
+  back if it didn't — so the result is announced, not guessed.
+- **Behind the scenes**: one central record of which rooms belong to which spaces, so the sidebar doesn't
+  stall while a big account loads (the "back" button used to freeze), with 24 tests.
+
+Accessibility is checked with Orca and the AT-SPI tree, and every change to this branch is judged first by how
+it reads, not only by how it looks. If something is announced badly, missing a name, or can't be reached with
+the keyboard, that is a bug here — please report it on this repository's issues.
 
 ## Install
 
@@ -54,9 +83,10 @@ The spaces work in this repository was written with the help of an AI assistant 
 it cannot be offered to Fractal, and it isn't. We respect that: no merge request, and no issue written by a
 model.
 
-It exists anyway because of who it is for. A blind friend of the author uses Matrix through a screen
-reader, and spaces were hard to get around in Fractal for him; with his friend's help this was one of the
-very few ways to get something that works for him now, rather than at some unknown point in the future.
+It exists anyway because of who it is for (see the top of this page): for a blind user, a Matrix client
+without spaces is much harder to use, and with the author's help this was the realistic way to get something
+that works for him now, rather than at some unknown point in the future. Accessibility is exactly the kind of
+need where waiting has a real cost to a real person.
 
 So the work is kept as a separate, openly labelled branch:
 
