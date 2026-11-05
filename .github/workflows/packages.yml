@@ -6,6 +6,7 @@ name: Packages
 on:
   push:
     branches: [build]
+    paths-ignore: ["README.md"]
   workflow_dispatch:
     inputs:
       ref:
@@ -16,6 +17,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: packages
+  cancel-in-progress: true
 
 jobs:
   arch:
