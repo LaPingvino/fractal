@@ -1,0 +1,80 @@
+# Keeps the spaces work on top of Fractal's main: every night it rebases the
+# `spaces` branch onto gitlab.gnome.org/World/fractal main. A clean rebase is
+# pushed and a new Flatpak build started; a failed one leaves the branch as it
+# was and opens (or updates) an issue mentioning the owner, so GitHub mails him.
+name: Rebase on Fractal main
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 2 * * *"
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: build
+          fetch-depth: 0
+      - name: Rebase spaces onto Fractal main
+        id: rebase
+        run: |
+          git config user.name "Joop Kiefte"
+          git config user.email "ikojba@gmail.com"
+          if ! git ls-remote --exit-code --heads origin spaces >/dev/null; then
+            echo "No spaces branch yet; nothing to rebase."
+            echo "result=none" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git fetch origin spaces
+          git remote add upstream https://gitlab.gnome.org/World/fractal.git
+          git fetch upstream main
+          git checkout -B spaces origin/spaces
+          old=$(git rev-parse HEAD)
+          if git merge-base --is-ancestor upstream/main spaces; then
+            echo "Already on top of Fractal main."
+            echo "result=current" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git rebase upstream/main > rebase.log 2>&1; then
+            git push --force-with-lease=spaces:"$old" origin spaces
+            echo "result=rebased" >> "$GITHUB_OUTPUT"
+          else
+            git diff --name-only --diff-filter=U > conflicts.txt || true
+            git rebase --abort
+            echo "result=conflict" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Start a new build
+        if: steps.rebase.outputs.result == 'rebased'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run flatpak.yml -R "${{ github.repository }}" --ref build -f ref=spaces
+      - name: Report the failed rebase
+        if: steps.rebase.outputs.result == 'conflict'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Auto-rebase of spaces onto Fractal main failed"
+          {
+            echo "@LaPingvino the nightly rebase of \`spaces\` onto Fractal's main stopped on conflicts."
+            echo
+            echo "Fractal main: $(git rev-parse --short upstream/main) — run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo
+            echo "Conflicting files:"
+            sed 's/^/- /' conflicts.txt
+            echo
+            echo "The branch is unchanged; the last good build stays on the spaces-latest release."
+          } > body.md
+          n=$(gh issue list -R "${{ github.repository }}" --state open --search "$title in:title" --json number -q '.[0].number')
+          if [ -n "$n" ]; then
+            gh issue comment "$n" -R "${{ github.repository }}" --body-file body.md
+          else
+            gh issue create -R "${{ github.repository }}" --title "$title" --body-file body.md
+          fi
+          exit 1
