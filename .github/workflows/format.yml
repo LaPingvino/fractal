@@ -1,0 +1,31 @@
+# Formats the spaces branch with Fractal's pinned nightly rustfmt (the version in
+# its .gitlab-ci.yml) and hands back the change as a patch artifact, to be
+# reviewed and committed by hand — nothing is pushed from here.
+name: Format
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch to format (default: spaces)"
+        required: false
+
+jobs:
+  rustfmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || 'spaces' }}
+      - name: Nightly rustfmt, as Fractal's CI runs it
+        run: |
+          v=$(sed -n 's/^ *RUST_NIGHTLY_VERSION: "\(.*\)"/\1/p' .gitlab-ci.yml)
+          docker run --rm -v "$PWD":/src -w /src "rustlang/rust:nightly-slim-$v" sh -c \
+            "rustup component add rustfmt --toolchain nightly-$v && cargo +nightly-$v fmt --all"
+          git config --global --add safe.directory "$PWD"
+          git diff > fmt.patch
+          git diff --stat
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fmt-patch
+          path: fmt.patch
