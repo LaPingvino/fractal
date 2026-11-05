@@ -31,8 +31,9 @@ What this build changes, with the screen reader in mind:
 - **Behind the scenes**: one central record of which rooms belong to which spaces, so the sidebar doesn't
   stall while a big account loads (the "back" button used to freeze), with 24 tests.
 
-Accessibility is checked with Orca and the AT-SPI tree, and every change to this branch is judged first by how
-it reads, not only by how it looks. If something is announced badly, missing a name, or can't be reached with
+Every change to this branch is judged first by how it reads to a screen reader, not only by how it looks. A
+full pass through each screen with Orca and the AT-SPI tree is under way; until it's done, the list above is
+what the code does, not yet a guarantee of how every screen sounds. If something is announced badly, missing a name, or can't be reached with
 the keyboard, that is a bug here — please report it on this repository's issues.
 
 ## Install
