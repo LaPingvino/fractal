@@ -105,7 +105,8 @@ That is a pity, because this is exactly where AI helps most: with the things a d
 Linus Torvalds says it about his own hobby project
 [AudioNoise](https://github.com/torvalds/AudioNoise): "the python visualizer tool has been basically written by
 vibe-coding. I know more about analog filters — and that's not saying much — than I do about python. […]
-I cut out the middle-man — me — and just used Google Antigravity to do the audio sample visualizer." For me
+I cut out the middle-man — me — and just used Google Antigravity to do the audio sample visualizer." That was
+in January 2026, with the models of that moment; they have become a good deal better since. For me
 that is accessibility, and things like documentation: work that matters a great deal to the people who need
 it, and that rarely gets done at all. The Linux kernel accepts AI-assisted contributions under its normal
 rules, and in July 2026 Torvalds put it plainly on the kernel mailing list: "AI is a tool, just like other
