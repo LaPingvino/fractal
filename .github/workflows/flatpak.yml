@@ -1,0 +1,65 @@
+# Builds the spaces work as a Flatpak that installs beside the regular Fractal,
+# runs Fractal's tests inside the build, and publishes the bundle on the
+# "spaces-latest" release. Lives on the `build` branch so the work branch stays
+# exactly what it is.
+name: Flatpak
+
+on:
+  push:
+    branches: [build]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch to build (default: spaces, else space-fixes)"
+        required: false
+  schedule:
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flatpak
+  cancel-in-progress: true
+
+jobs:
+  flatpak:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
+      options: --privileged
+    steps:
+      - name: Pick the branch
+        id: pick
+        run: |
+          ref="${{ github.event.inputs.ref }}"
+          if [ -z "$ref" ]; then
+            if git ls-remote --exit-code --heads "https://github.com/${{ github.repository }}" spaces >/dev/null; then ref=spaces; else ref=space-fixes; fi
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pick.outputs.ref }}
+      - name: Use the stable GNOME runtime (Flathub) instead of nightly
+        run: |
+          m=build-aux/org.gnome.Fractal.Devel.json
+          jq '."runtime-version" = "51"' "$m" > "$m.tmp" && mv "$m.tmp" "$m"
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: fractal-spaces.flatpak
+          manifest-path: build-aux/org.gnome.Fractal.Devel.json
+          cache-key: flatpak-builder-${{ steps.pick.outputs.ref }}
+          upload-artifact: false
+      - name: Publish on the spaces-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global --add safe.directory "$PWD"
+          sha=$(git rev-parse --short HEAD)
+          notes="Fractal with spaces support, built from ${{ steps.pick.outputs.ref }} ($sha). Install: see the README on the build branch."
+          if gh release view spaces-latest -R "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release edit spaces-latest -R "${{ github.repository }}" --notes "$notes"
+          else
+            gh release create spaces-latest -R "${{ github.repository }}" --prerelease --title "Fractal with spaces (latest build)" --notes "$notes" --target build
+          fi
+          gh release upload spaces-latest fractal-spaces.flatpak -R "${{ github.repository }}" --clobber
