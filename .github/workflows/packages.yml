@@ -1,0 +1,52 @@
+# Native packages of the spaces work, published next to the Flatpak on the
+# spaces-latest release. Fractal needs GTK ≥ 4.20 and libadwaita ≥ 1.8, so
+# only distributions that ship those can have a native package.
+name: Packages
+
+on:
+  push:
+    branches: [build]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch to build (default: spaces, else space-fixes)"
+        required: false
+  schedule:
+    - cron: "47 3 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  arch:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Tools
+        run: pacman -Syu --noconfirm --needed base-devel git github-cli
+      - uses: actions/checkout@v4
+        with:
+          ref: build
+      - name: Build the package
+        run: |
+          ref="${{ github.event.inputs.ref }}"
+          if [ -z "$ref" ]; then
+            if git ls-remote --exit-code --heads "https://github.com/${{ github.repository }}" spaces >/dev/null; then ref=spaces; else ref=space-fixes; fi
+          fi
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          cp -r packaging/arch /home/builder/pkg
+          sed -i "s/^_branch=.*/_branch=$ref/" /home/builder/pkg/PKGBUILD
+          chown -R builder /home/builder/pkg
+          cd /home/builder/pkg
+          sudo -u builder makepkg -s --noconfirm --nocheck
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global --add safe.directory "$PWD"
+          gh release view spaces-latest -R "${{ github.repository }}" >/dev/null 2>&1 || gh release create spaces-latest -R "${{ github.repository }}" --prerelease --title "Fractal with spaces (latest build)" --notes "Builds of the spaces work. Install: see the README on the build branch." --target build
+          for f in /home/builder/pkg/fractal-spaces-git-*.pkg.tar.zst; do
+            cp "$f" fractal-spaces-x86_64.pkg.tar.zst
+          done
+          gh release upload spaces-latest fractal-spaces-x86_64.pkg.tar.zst -R "${{ github.repository }}" --clobber

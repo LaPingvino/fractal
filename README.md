@@ -21,6 +21,15 @@ You need Flatpak with Flathub. Most distributions have it; if not, see https://f
 
        flatpak run org.gnome.Fractal.Devel
 
+### On Arch Linux, as a native package
+
+Download `fractal-spaces-x86_64.pkg.tar.zst` from the same release page and run:
+
+    sudo pacman -U fractal-spaces-x86_64.pkg.tar.zst
+
+It replaces the regular `fractal` package (both use the same program name). To build it yourself:
+`packaging/arch/PKGBUILD` on this branch, with `makepkg -si`.
+
 ## Update
 
 Download the file again and run the same install command. A new build is made every night and whenever

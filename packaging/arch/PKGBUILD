@@ -1,0 +1,44 @@
+# Fractal with the spaces work, from LaPingvino/fractal (branch spaces).
+# Modelled on Arch's own fractal package (archlinux/packaging/packages/fractal).
+pkgname=fractal-spaces-git
+_branch=spaces
+pkgver=0
+pkgrel=1
+pkgdesc="Matrix group messaging app — with spaces support (AI-assisted fork branch)"
+arch=(x86_64 aarch64)
+url="https://github.com/LaPingvino/fractal"
+license=(GPL-3.0-only)
+depends=(
+  dconf emoji-font fontconfig gdk-pixbuf2 glib2 glibc glycin glycin-gtk4 graphene
+  gst-plugins-bad-libs gst-plugins-base-libs gst-plugin-gtk4 gstreamer gtk4 gtksourceview5
+  hicolor-icon-theme lcms2 libadwaita libgcc libpipewire libseccomp libshumate openssl
+  org.freedesktop.secrets pango sqlite
+)
+makedepends=(blueprint-compiler clang cmake dart-sass git libwebp meson rust xdg-desktop-portal)
+optdepends=('gst-plugins-good: for video support')
+provides=(fractal)
+conflicts=(fractal)
+source=("fractal::git+$url.git#branch=$_branch")
+sha256sums=(SKIP)
+
+pkgver() {
+  cd fractal
+  printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+prepare() {
+  export CARGO_HOME="$srcdir/build/cargo-home"
+  cd fractal
+  cargo fetch --locked --target "$(rustc --print host-tuple)"
+}
+
+build() {
+  export CARGO_HOME="$srcdir/build/cargo-home"
+  CFLAGS+=' -ffat-lto-objects'
+  arch-meson fractal build
+  meson compile -C build
+}
+
+package() {
+  meson install -C build --destdir "$pkgdir"
+}
