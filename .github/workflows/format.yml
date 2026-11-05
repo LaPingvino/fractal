@@ -1,6 +1,7 @@
 # Formats the spaces branch with Fractal's pinned nightly rustfmt (the version in
-# its .gitlab-ci.yml) and hands back the change as a patch artifact, to be
-# reviewed and committed by hand — nothing is pushed from here.
+# its .gitlab-ci.yml) and blueprint-compiler's formatter (the .blp UI files), and
+# hands back the change as one patch artifact, to be reviewed and committed by
+# hand — nothing is pushed from here.
 name: Format
 
 on:
@@ -22,6 +23,13 @@ jobs:
           v=$(sed -n 's/^ *RUST_NIGHTLY_VERSION: "\(.*\)"/\1/p' .gitlab-ci.yml)
           docker run --rm -v "$PWD":/src -w /src "rustlang/rust:nightly-slim-$v" sh -c \
             "rustup component add rustfmt --toolchain nightly-$v && cargo +nightly-$v fmt --all"
+      - name: blueprint-compiler format (Arch's package; the Checks run it from the GNOME SDK)
+        run: |
+          docker run --rm -v "$PWD":/src -w /src archlinux:latest sh -c \
+            "pacman -Sy --noconfirm blueprint-compiler >/dev/null && blueprint-compiler --version && blueprint-compiler format --fix src || true"
+          sudo chown -R "$(id -u):$(id -g)" .
+      - name: The patch
+        run: |
           git config --global --add safe.directory "$PWD"
           git diff > fmt.patch
           git diff --stat
