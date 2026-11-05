@@ -106,13 +106,19 @@ Linus Torvalds says it about his own hobby project
 [AudioNoise](https://github.com/torvalds/AudioNoise): "the python visualizer tool has been basically written by
 vibe-coding. I know more about analog filters — and that's not saying much — than I do about python. […]
 I cut out the middle-man — me — and just used Google Antigravity to do the audio sample visualizer." That was
-in January 2026, with the models of that moment; they have become a good deal better since. For me
-that is accessibility, and things like documentation: work that matters a great deal to the people who need
-it, and that rarely gets done at all. The Linux kernel accepts AI-assisted contributions under its normal
-rules, and in July 2026 Torvalds put it plainly on the kernel mailing list: "AI is a tool, just like other
-tools we use. And it's clearly a useful one."
-([Phoronix](https://www.phoronix.com/news/Linux-Is-Not-Anti-AI),
-[Simon Willison](https://simonwillison.net/2026/Jul/16/linus-torvalds/))
+in January 2026, with the models of that moment; they have become a good deal better since. By October 2026,
+on stage at Open Source Summit Europe, he said: "I used to think it was just not very good — but now I'm at the
+point where I actually really like using AI." He had used it to recreate one of his guitar pedals in Java —
+"I don't do Java. I do kernels." ([XDA](https://www.xda-developers.com/as-the-linux-community-debates-llm-generated-content-rules-linus-torvalds-says-he-really-likes-using-ai/),
+[The Next Web](https://thenextweb.com/news/torvalds-ai-assisted-by-tag-utterly-stupid-open-source-summit))
+
+For me that is accessibility, and things like documentation: work that matters a great deal to the people who
+need it, and that rarely gets done at all.
+
+And on judging contributions by the tool that made them, Torvalds wrote on the kernel mailing list that same
+month: "The kind of expectations _I_ have is that people do their best and I expect people to understand what
+they are doing. But that understanding has very little to do with what tools they use."
+([The Next Web](https://thenextweb.com/news/torvalds-ai-assisted-by-tag-utterly-stupid-open-source-summit))
 
 My own view: most code ever written is slop, by people as much as by machines. AI-written code has one thing
 going for it — like code run through `go fmt`, it tends to follow the standards by default, which makes it
