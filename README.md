@@ -36,6 +36,18 @@ full pass through each screen with Orca and the AT-SPI tree is under way; until 
 what the code does, not yet a guarantee of how every screen sounds. If something is announced badly, missing a name, or can't be reached with
 the keyboard, that is a bug here — please report it on this repository's issues.
 
+### Part of a wider accessibility effort
+
+This branch is one piece of a longer effort by the same author to make free software usable with a screen
+reader:
+
+- **[Wally](https://github.com/LaPingvino/wally)**, an accessible Matrix web client (a fork of Cinny): ARIA
+  roles and live regions throughout, keyboard shortcuts for navigation and for moving through unread rooms,
+  screen-reader labels on every login and settings form, notification sounds, and a tree-view room list.
+- **[atspi](https://github.com/LaPingvino/atspi)**, Linux screen reader support (AT-SPI2) for Go programs
+  without C, so Go toolkits can talk to Orca; a bridge for the [Fyne](https://fyne.io) toolkit is being
+  written in a fork of Fyne, alongside fixes already contributed to Fyne itself.
+
 ## Install
 
 You need Flatpak with Flathub. Most distributions have it; if not, see https://flathub.org/setup.
@@ -97,8 +109,15 @@ So the work is kept as a separate, openly labelled branch:
   person it was made for;
 - until then it is only built and shared here.
 
-The author's own view, for what it's worth: AI-assisted work has improved a great deal, and he hopes the
-reasons behind such rules will be looked at again as that continues. That is a conversation for Fractal's
-maintainers to have on their own terms; this branch does not try to force it.
+Not every project draws the line there. The Linux kernel accepts AI-assisted contributions under its normal
+rules, and in July 2026 Linus Torvalds put it plainly on the kernel mailing list: "AI is a tool, just like
+other tools we use. And it's clearly a useful one." ([Phoronix](https://www.phoronix.com/news/Linux-Is-Not-Anti-AI),
+[Simon Willison](https://simonwillison.net/2026/Jul/16/linus-torvalds/))
+
+The author's own view: AI-assisted work has improved a great deal, and he hopes the reasons behind rules like
+Fractal's will be looked at again as that continues — accessibility is a strong case for it, because the
+people waiting are the ones least served by the status quo. But that is a conversation for Fractal's
+maintainers to have on their own terms; this branch does not try to force it, and keeps to their rule until
+they change it.
 
 The source is on the `spaces` branch of this repository.
