@@ -87,6 +87,19 @@ the work changes.
 
     flatpak uninstall --user org.gnome.Fractal.Devel
 
+## Security fixes ahead of upstream
+
+This fork's builds carry security updates as soon as they are published, without waiting for Fractal's next
+release. Each one is a single commit at the top of the `spaces` branch, separate from the spaces work, and is
+checked with Fractal's own `cargo deny` configuration.
+
+| Advisory | Affected crate | Fixed in our builds |
+|---|---|---|
+| [RUSTSEC-2026-0414](https://rustsec.org/advisories/RUSTSEC-2026-0414.html): exponential event growth with wikilinks enabled | pulldown-cmark 0.13.4 | 0.13.6 |
+| [RUSTSEC-2026-0433](https://rustsec.org/advisories/RUSTSEC-2026-0433.html): quadratic parsing of nested image wikilinks | pulldown-cmark 0.13.4 | 0.13.6 |
+
+When Fractal takes these updates itself, the entries move out of this list.
+
 ## Why this is not in Fractal itself
 
 Because this work was made with an AI assistant (Claude), it can't go into Fractal. Fractal's contribution
