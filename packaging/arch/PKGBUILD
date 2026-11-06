@@ -34,6 +34,11 @@ prepare() {
 
 build() {
   export CARGO_HOME="$srcdir/build/cargo-home"
+  # Fractal's release profile asks for full debug info with thin LTO and one
+  # codegen unit; on a CI runner the final rustc then runs out of memory
+  # (SIGKILL, 2026-11-06). Line tables keep backtraces readable at a
+  # fraction of the memory; LTO and the codegen units stay as upstream.
+  export CARGO_PROFILE_RELEASE_DEBUG=line-tables-only
   CFLAGS+=' -ffat-lto-objects'
   arch-meson fractal build
   meson compile -C build
