@@ -39,6 +39,10 @@ build() {
   # (SIGKILL, 2026-11-06). Line tables keep backtraces readable at a
   # fraction of the memory; LTO and the codegen units stay as upstream.
   export CARGO_PROFILE_RELEASE_DEBUG=line-tables-only
+  # makepkg's debug option appends -C debuginfo=2 to RUSTFLAGS, which comes
+  # after the profile's setting and wins: line tables there too.
+  RUSTFLAGS="${RUSTFLAGS//-C debuginfo=2/-C debuginfo=line-tables-only}"
+  export RUSTFLAGS
   CFLAGS+=' -ffat-lto-objects'
   arch-meson fractal build
   meson compile -C build
