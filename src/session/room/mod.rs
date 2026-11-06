@@ -19,7 +19,8 @@ use ruma::{
     EventId, MatrixToUri, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, UserId,
     api::{
         client::{
-            receipt::create_receipt::v3::ReceiptType as ApiReceiptType, space::get_hierarchy,
+            receipt::create_receipt::v3::ReceiptType as ApiReceiptType,
+            space::{SpaceHierarchyRoomsChunk, get_hierarchy},
         },
         error::{ErrorKind, LimitExceededErrorData, RetryAfter},
     },
@@ -2336,6 +2337,18 @@ impl Room {
             .unwrap_or_default()
     }
 
+    /// Get the child rooms and spaces of this space.
+    pub(crate) fn child_rooms(&self) -> Vec<OwnedRoomId> {
+        self.session()
+            .map(|s| {
+                s.space_hierarchy()
+                    .children_of(self.room_id())
+                    .into_iter()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// Calculate the recursive notification count for this space.
     /// Uses the centralized hierarchy for cycle-safe traversal.
     pub(crate) fn calculate_recursive_notification_count(&self) -> u64 {
@@ -2595,6 +2608,16 @@ impl Room {
                 }
             }
         ));
+    }
+
+    /// Get the suggested (unjoined) rooms for this space.
+    pub(crate) fn suggested_rooms(&self) -> Vec<SpaceHierarchyRoomsChunk> {
+        self.session()
+            .and_then(|s| {
+                s.space_hierarchy()
+                    .suggested_rooms(self.room_id(), std::time::Duration::from_secs(300))
+            })
+            .unwrap_or_default()
     }
 
     /// Link this room to a space by sending the necessary state events.
