@@ -34,6 +34,9 @@ jobs:
           cp packaging/fedora/fractal-spaces.spec ~/rpmbuild/SPECS/
           curl -fsSL -o ~/rpmbuild/SOURCES/fractal-spaces.tar.gz "https://github.com/${{ github.repository }}/archive/refs/heads/spaces.tar.gz"
           dnf -y builddep ~/rpmbuild/SPECS/fractal-spaces.spec
+          # Fractal needs a SASS compiler: grass (Rust) or dart-sass; Fedora packages
+          # neither as such, so grass from crates.io, with the cargo just installed
+          cargo install grass --locked --root /usr/local
           rpmbuild -bb --define "snapdate $(date +%Y%m%d)" ~/rpmbuild/SPECS/fractal-spaces.spec
       - name: Publish
         env:

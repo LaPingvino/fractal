@@ -19,6 +19,8 @@ BuildRequires:  rust
 BuildRequires:  clang
 BuildRequires:  git-core
 BuildRequires:  blueprint-compiler
+# a SASS compiler (grass or dart-sass) must be on PATH too — the workflow
+# installs grass with cargo; neither is a Fedora package
 BuildRequires:  desktop-file-utils
 BuildRequires:  libappstream-glib
 BuildRequires:  pkgconfig(glib-2.0) >= 2.82
