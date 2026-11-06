@@ -1,0 +1,45 @@
+# The Fedora package of the spaces work (F7), published on the spaces-latest
+# release beside the Flatpak and the Arch package. Its own workflow, so a push
+# doesn't cancel the Arch build.
+name: Fedora
+
+on:
+  push:
+    branches: [build]
+    paths: ["packaging/fedora/**", ".github/workflows/fedora.yml"]
+  workflow_dispatch:
+  schedule:
+    - cron: "23 4 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fedora
+  cancel-in-progress: true
+
+jobs:
+  rpm:
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Tools
+        run: dnf -y install rpm-build rpmdevtools dnf-plugins-core git-core gh curl
+      - uses: actions/checkout@v4
+        with:
+          ref: build
+      - name: Build the package
+        run: |
+          rpmdev-setuptree
+          cp packaging/fedora/fractal-spaces.spec ~/rpmbuild/SPECS/
+          curl -fsSL -o ~/rpmbuild/SOURCES/fractal-spaces.tar.gz "https://github.com/${{ github.repository }}/archive/refs/heads/spaces.tar.gz"
+          dnf -y builddep ~/rpmbuild/SPECS/fractal-spaces.spec
+          rpmbuild -bb --define "snapdate $(date +%Y%m%d)" ~/rpmbuild/SPECS/fractal-spaces.spec
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config --global --add safe.directory "$PWD"
+          gh release view spaces-latest -R "${{ github.repository }}" >/dev/null 2>&1 || gh release create spaces-latest -R "${{ github.repository }}" --prerelease --title "Fractal with spaces (latest build)" --notes "Builds of the spaces work. Install: see the README on the build branch." --target build
+          for f in ~/rpmbuild/RPMS/x86_64/fractal-spaces-*.rpm; do cp "$f" fractal-spaces-x86_64.rpm; done
+          gh release upload spaces-latest fractal-spaces-x86_64.rpm -R "${{ github.repository }}" --clobber
