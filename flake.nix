@@ -31,7 +31,7 @@
           cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
             src = fractal-src;
             name = "fractal-spaces-vendor";
-            hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+            hash = "sha256-E2PK3QcCTABvXypP0k4qeF6MZFHnyUsnCqLUSwJYw64=";
           };
           # as in the other packages: line tables, or the build runs out of memory
           env = (old.env or { }) // { CARGO_PROFILE_RELEASE_DEBUG = "line-tables-only"; };

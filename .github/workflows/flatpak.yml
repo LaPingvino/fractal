@@ -7,7 +7,7 @@ name: Flatpak
 on:
   push:
     branches: [build]
-    paths-ignore: ["README.md", "packaging/debian/**", "packaging/fedora/**", ".github/workflows/debian.yml", ".github/workflows/fedora.yml"]
+    paths-ignore: ["README.md", "packaging/debian/**", "packaging/fedora/**", ".github/workflows/debian.yml", ".github/workflows/fedora.yml", "packaging/appimage/**", "flake.nix", "flake.lock", ".github/workflows/nix.yml"]
   workflow_dispatch:
     inputs:
       ref:
