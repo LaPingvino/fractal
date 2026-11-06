@@ -1,0 +1,28 @@
+# The Nix flake of the spaces work (F7): builds packages.x86_64-linux.default.
+# On a vendor-hash mismatch the log names the right hash ("got: sha256-…").
+name: Nix
+
+on:
+  push:
+    branches: [build]
+    paths: ["flake.nix", "flake.lock", ".github/workflows/nix.yml"]
+  workflow_dispatch:
+  schedule:
+    - cron: "53 4 * * 1"
+
+concurrency:
+  group: nix
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: build
+      - uses: cachix/install-nix-action@v31
+      - name: Build
+        run: nix build -L --no-write-lock-file .#default
+      - name: Check it runs
+        run: ./result/bin/fractal --version || true

@@ -96,6 +96,14 @@ Download `fractal-spaces-debian-amd64.deb` or `fractal-spaces-ubuntu-amd64.deb` 
 
 The build script is `packaging/debian/build-deb.sh`.
 
+### With Nix
+
+The build branch is a flake (nixos-unstable, nixpkgs' Fractal package with this source):
+
+    nix run github:LaPingvino/fractal/build
+
+or add `github:LaPingvino/fractal/build` as an input and use `packages.<system>.default`.
+
 ## Update
 
 Download the file again and run the same install command. A new build is made every night and whenever
