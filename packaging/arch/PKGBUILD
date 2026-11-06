@@ -32,7 +32,10 @@ prepare() {
   cargo fetch --locked --target "$(rustc --print host-tuple)"
 }
 
-build() {
+# The build's environment, the same for build() and package(): meson install
+# runs cargo again, and with other flags or another CARGO_HOME it rebuilds —
+# under fakeroot, fetching git dependencies as root (failed 2026-11-06).
+_cargo_env() {
   export CARGO_HOME="$srcdir/build/cargo-home"
   # Fractal's release profile asks for full debug info with thin LTO and one
   # codegen unit; on a CI runner the final rustc then runs out of memory
@@ -43,11 +46,17 @@ build() {
   # after the profile's setting and wins: line tables there too.
   RUSTFLAGS="${RUSTFLAGS//-C debuginfo=2/-C debuginfo=line-tables-only}"
   export RUSTFLAGS
+  # C code in the crates (cc) sees CFLAGS too: the same in both steps
   CFLAGS+=' -ffat-lto-objects'
+}
+
+build() {
+  _cargo_env
   arch-meson fractal build
   meson compile -C build
 }
 
 package() {
+  _cargo_env
   meson install -C build --destdir "$pkgdir"
 }
