@@ -195,6 +195,7 @@ src/session_view/room_history/state/group_row.rs
 src/session_view/room_history/title.blp
 src/session_view/room_history/typing_row.rs
 src/session_view/room_history/verification_info_bar.rs
+src/session_view/sidebar/icon_item_row.rs
 src/session_view/sidebar/mod.blp
 src/session_view/sidebar/mod.rs
 src/session_view/sidebar/room_row.rs
