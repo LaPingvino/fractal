@@ -12,7 +12,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends \
   ca-certificates curl git build-essential clang pkg-config meson ninja-build \
-  blueprint-compiler desktop-file-utils appstream-util gettext dpkg-dev \
+  blueprint-compiler desktop-file-utils appstream gettext dpkg-dev \
   libglib2.0-dev libgtk-4-dev libadwaita-1-dev libgtksourceview-5-dev libshumate-dev \
   libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev \
   libglycin-2-dev libglycin-gtk4-2-dev libwebp-dev libsqlite3-dev libssl-dev \
