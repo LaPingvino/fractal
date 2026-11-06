@@ -110,6 +110,7 @@ src/session/sidebar_data/section/name.rs
 src/session/user_sessions_list/user_session.rs
 src/session_list/mod.rs
 src/session_view/content.blp
+src/session_view/content.rs
 src/session_view/create_direct_chat_dialog/mod.blp
 src/session_view/create_direct_chat_dialog/mod.rs
 src/session_view/create_room_dialog.blp
