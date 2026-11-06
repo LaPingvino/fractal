@@ -7,8 +7,9 @@ use super::{
 };
 use crate::session::{RoomCategory, RoomList, VerificationList};
 
-/// The number of top-level items in the sidebar.
-const TOP_LEVEL_ITEMS_COUNT: usize = 9;
+/// The number of top-level items in the sidebar (including back button and
+/// space settings button).
+const TOP_LEVEL_ITEMS_COUNT: usize = 12;
 
 mod imp {
     use std::cell::OnceCell;
@@ -50,9 +51,22 @@ mod imp {
             let room_list = obj.room_list();
             let verification_list = obj.verification_list();
 
+            // Create back button and hide it initially (shown only when in a space)
+            let back_button = SidebarItem::new(SidebarIconItem::new(SidebarIconItemType::Back));
+            back_button.set_visible(false);
+
+            // Create space settings button and hide it initially (shown only when in a
+            // space)
+            let space_settings_button =
+                SidebarItem::new(SidebarIconItem::new(SidebarIconItemType::SpaceSettings));
+            space_settings_button.set_visible(false);
+
             let list = self.list.get_or_init(|| {
                 [
                     SidebarItem::new(SidebarIconItem::new(SidebarIconItemType::Explore)),
+                    back_button,
+                    space_settings_button,
+                    SidebarItem::new(SidebarSection::new(SidebarSectionName::Spaces, &room_list)),
                     SidebarItem::new(SidebarSection::new(
                         SidebarSectionName::VerificationRequest,
                         &verification_list,
@@ -181,15 +195,16 @@ impl SidebarItemList {
         &self,
         category: RoomCategory,
     ) -> Option<SidebarSection> {
-        const FIRST_ROOM_SECTION_INDEX: usize = 2;
+        const FIRST_ROOM_SECTION_INDEX: usize = 3; // After Explore, Back button, and Space Settings button
 
         let index = match category {
-            RoomCategory::Knocked => FIRST_ROOM_SECTION_INDEX,
-            RoomCategory::Invited => FIRST_ROOM_SECTION_INDEX + 1,
-            RoomCategory::Favorite => FIRST_ROOM_SECTION_INDEX + 2,
-            RoomCategory::Normal => FIRST_ROOM_SECTION_INDEX + 3,
-            RoomCategory::LowPriority => FIRST_ROOM_SECTION_INDEX + 4,
-            RoomCategory::Left => FIRST_ROOM_SECTION_INDEX + 5,
+            RoomCategory::Space => FIRST_ROOM_SECTION_INDEX,
+            RoomCategory::Knocked => FIRST_ROOM_SECTION_INDEX + 2,
+            RoomCategory::Invited => FIRST_ROOM_SECTION_INDEX + 3,
+            RoomCategory::Favorite => FIRST_ROOM_SECTION_INDEX + 4,
+            RoomCategory::Normal => FIRST_ROOM_SECTION_INDEX + 5,
+            RoomCategory::LowPriority => FIRST_ROOM_SECTION_INDEX + 6,
+            RoomCategory::Left => FIRST_ROOM_SECTION_INDEX + 7,
             _ => return None,
         };
 
@@ -198,5 +213,42 @@ impl SidebarItemList {
             .get(index)
             .map(SidebarItem::inner_item)
             .and_downcast()
+    }
+
+    /// Notify all sections that the current space has changed.
+    pub(crate) fn notify_current_space_changed(&self) {
+        // Get current space state from the session
+        let room_list = self.room_list();
+        if let Some(session) = room_list.session() {
+            let sidebar = session.sidebar_list_model();
+            let is_in_space = sidebar.current_space().is_some();
+
+            // Update back button visibility (position 1 in the list)
+            if let Some(back_item) = self.imp().list().get(1) {
+                back_item.set_visible(is_in_space);
+            }
+
+            // Update space settings button visibility (position 2 in the list)
+            if let Some(space_settings_item) = self.imp().list().get(2) {
+                space_settings_item.set_visible(is_in_space);
+            }
+        }
+
+        // Trigger re-filtering in all sections by notifying them
+        for item in self.imp().list() {
+            if let Some(section) = item.inner_item().downcast_ref::<SidebarSection>() {
+                section.notify_current_space_changed();
+            }
+        }
+    }
+
+    /// Notify all sections that the search state has changed.
+    pub(crate) fn notify_search_changed(&self, is_search_active: bool) {
+        // Trigger re-filtering in all sections
+        for item in self.imp().list() {
+            if let Some(section) = item.inner_item().downcast_ref::<SidebarSection>() {
+                section.notify_search_changed(is_search_active);
+            }
+        }
     }
 }

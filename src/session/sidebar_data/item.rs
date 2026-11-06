@@ -199,4 +199,9 @@ impl SidebarItem {
 
         self.imp().set_visible(visible);
     }
+
+    /// Set whether this item is visible.
+    pub(crate) fn set_visible(&self, visible: bool) {
+        self.imp().set_visible(visible);
+    }
 }
