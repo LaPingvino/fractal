@@ -58,5 +58,7 @@ build() {
 
 package() {
   _cargo_env
-  meson install -C build --destdir "$pkgdir"
+  # --no-rebuild: copy what build() made; never run cargo again under fakeroot
+  # (it re-resolved the git dependencies as root even with the same env)
+  meson install -C build --no-rebuild --destdir "$pkgdir"
 }
