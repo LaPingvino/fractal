@@ -10,6 +10,11 @@
 set -euo pipefail
 deb=$1 out=${2:-$PWD}
 apt-get install -y --no-install-recommends file wget librsvg2-dev
+# linuxdeploy-plugin-gtk copies GTK's module folder (<libdir>/gtk-4.0); Debian's
+# GTK 4.24 has it only with an optional module package — the GStreamer media
+# backend where there is one, and the folder made either way
+apt-get install -y --no-install-recommends libgtk-4-media-gstreamer || true
+mkdir -p "$(pkg-config --variable=libdir gtk4)/gtk-4.0"
 work=$(mktemp -d)
 dpkg-deb -x "$deb" "$work/AppDir"
 cd "$work"
