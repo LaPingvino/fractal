@@ -96,6 +96,16 @@ Download `fractal-spaces-debian-amd64.deb` or `fractal-spaces-ubuntu-amd64.deb` 
 
 The build script is `packaging/debian/build-deb.sh`.
 
+### As an AppImage
+
+Download `fractal-spaces-x86_64.AppImage`, make it executable and run it:
+
+    chmod +x fractal-spaces-x86_64.AppImage
+    ./fractal-spaces-x86_64.AppImage
+
+Limits: it is built on Debian testing, so it needs an equally recent system (otherwise use the Flatpak),
+and image previews and media playback use your system's glycin loaders and GStreamer plugins.
+
 ### With Nix
 
 The build branch is a flake (nixos-unstable, nixpkgs' Fractal package with this source):

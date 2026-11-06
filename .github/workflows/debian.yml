@@ -7,7 +7,7 @@ name: Debian
 on:
   push:
     branches: [build]
-    paths: ["packaging/debian/**", ".github/workflows/debian.yml"]
+    paths: ["packaging/debian/**", "packaging/appimage/**", ".github/workflows/debian.yml"]
   workflow_dispatch:
   schedule:
     - cron: "41 4 * * *"
@@ -37,6 +37,9 @@ jobs:
         env:
           REPO: ${{ github.repository }}
         run: packaging/debian/build-deb.sh "$PWD"
+      - name: Build the AppImage (from the Debian testing package)
+        if: matrix.image == 'debian:testing'
+        run: packaging/appimage/build-appimage.sh fractal-spaces-debian-amd64.deb "$PWD"
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -45,3 +48,4 @@ jobs:
           git config --global --add safe.directory "$PWD"
           gh release view spaces-latest -R "${{ github.repository }}" >/dev/null 2>&1 || gh release create spaces-latest -R "${{ github.repository }}" --prerelease --title "Fractal with spaces (latest build)" --notes "Builds of the spaces work. Install: see the README on the build branch." --target build
           gh release upload spaces-latest fractal-spaces-*.deb -R "${{ github.repository }}" --clobber
+          if [ -f fractal-spaces-x86_64.AppImage ]; then gh release upload spaces-latest fractal-spaces-x86_64.AppImage -R "${{ github.repository }}" --clobber; fi
