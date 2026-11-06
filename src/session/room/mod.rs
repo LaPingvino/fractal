@@ -18,7 +18,9 @@ use matrix_sdk::{
 use ruma::{
     EventId, MatrixToUri, OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, UserId,
     api::{
-        client::receipt::create_receipt::v3::ReceiptType as ApiReceiptType,
+        client::{
+            receipt::create_receipt::v3::ReceiptType as ApiReceiptType, space::get_hierarchy,
+        },
         error::{ErrorKind, LimitExceededErrorData, RetryAfter},
     },
     events::room::{
@@ -233,6 +235,13 @@ mod imp {
         /// Whether this is a call room as defined by [MSC3417](https://github.com/matrix-org/matrix-spec-proposals/pull/3417)
         #[property(get = Self::is_call)]
         is_call: PhantomData<bool>,
+        /// Whether this room is a space.
+        #[property(get)]
+        is_space: Cell<bool>,
+        /// Total unread notification count including all child rooms (for
+        /// spaces).
+        #[property(get)]
+        recursive_notification_count: Cell<u64>,
     }
 
     #[glib::object_subclass]
@@ -263,6 +272,9 @@ mod imp {
         /// Initialize this room.
         pub(super) fn init(&self, matrix_room: MatrixRoom, metainfo: Option<RoomMetainfo>) {
             let obj = self.obj();
+
+            // Set is_space before storing the matrix_room
+            self.is_space.set(matrix_room.is_space());
 
             self.matrix_room
                 .set(matrix_room)
@@ -1242,7 +1254,7 @@ mod imp {
 
                 if counts.highlight_count > 0 {
                     highlight = HighlightFlags::all();
-                } else {
+                } else if counts.notification_count > 0 {
                     highlight = HighlightFlags::BOLD;
                 }
                 self.set_notification_count(counts.notification_count);
@@ -1253,13 +1265,24 @@ mod imp {
 
         /// Set the number of unread notifications of this room.
         fn set_notification_count(&self, count: u64) {
-            if self.notification_count.get() == count {
+            let old_count = self.notification_count.get();
+            if old_count == count {
                 return;
             }
 
             self.notification_count.set(count);
             self.set_has_notifications(count > 0);
             self.obj().notify_notification_count();
+
+            // Propagate delta to parent spaces via idle callback to avoid
+            // cascading updates during sync.
+            let delta = count.cast_signed() - old_count.cast_signed();
+            if delta != 0 {
+                let obj = self.obj().clone();
+                glib::idle_add_local_once(move || {
+                    obj.propagate_notification_delta(delta);
+                });
+            }
         }
 
         /// Set whether this room has unread notifications.
@@ -1270,6 +1293,16 @@ mod imp {
 
             self.has_notifications.set(has_notifications);
             self.obj().notify_has_notifications();
+        }
+
+        /// Set the recursive notification count (for spaces).
+        pub(super) fn set_recursive_notification_count(&self, count: u64) {
+            if self.recursive_notification_count.get() == count {
+                return;
+            }
+
+            self.recursive_notification_count.set(count);
+            self.obj().notify_recursive_notification_count();
         }
 
         /// Update whether the room is encrypted from the SDK.
@@ -2263,6 +2296,366 @@ impl Room {
                 f(&obj);
             }),
         )
+    }
+
+    /// Add a parent space to this room.
+    pub(crate) fn add_parent_space(&self, space_id: &RoomId) {
+        if let Some(session) = self.session() {
+            session.space_hierarchy().add_edge(space_id, self.room_id());
+        }
+    }
+
+    /// Add a child room to this space.
+    pub(crate) fn add_child_room(&self, room_id: &RoomId) {
+        if let Some(session) = self.session() {
+            session.space_hierarchy().add_edge(self.room_id(), room_id);
+        }
+    }
+
+    /// Check if this room is a child of the given space.
+    pub(crate) fn is_in_space(&self, space_id: &RoomId) -> bool {
+        self.session()
+            .is_some_and(|s| s.space_hierarchy().is_in_space(self.room_id(), space_id))
+    }
+
+    /// Check if this room is not in any space (orphaned).
+    pub(crate) fn is_orphaned(&self) -> bool {
+        self.session()
+            .is_none_or(|s| s.space_hierarchy().is_orphaned(self.room_id()))
+    }
+
+    /// Get the parent spaces of this room.
+    pub(crate) fn parent_spaces(&self) -> Vec<OwnedRoomId> {
+        self.session()
+            .map(|s| {
+                s.space_hierarchy()
+                    .parents_of(self.room_id())
+                    .into_iter()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Calculate the recursive notification count for this space.
+    /// Uses the centralized hierarchy for cycle-safe traversal.
+    pub(crate) fn calculate_recursive_notification_count(&self) -> u64 {
+        if !self.is_space() {
+            return self.notification_count();
+        }
+
+        let Some(session) = self.session() else {
+            return 0;
+        };
+
+        let hierarchy = session.space_hierarchy();
+
+        // Use cached value if available.
+        if let Some(cached) = hierarchy.cached_recursive_count(self.room_id()) {
+            return cached;
+        }
+
+        // Compute by walking the graph with cycle detection.
+        let room_list = session.room_list();
+        let client = session.client();
+        let mut total = 0u64;
+        let mut visited = HashSet::new();
+        let mut stack = vec![self.room_id().to_owned()];
+
+        while let Some(current) = stack.pop() {
+            if !visited.insert(current.clone()) {
+                continue;
+            }
+            for child_id in hierarchy.children_of(&current) {
+                if let Some(child) = room_list.get(&child_id) {
+                    if child.is_space() {
+                        stack.push(child_id);
+                    } else {
+                        total += child.notification_count();
+                    }
+                } else if let Some(matrix_room) = client.get_room(&child_id) {
+                    total += matrix_room.unread_notification_counts().notification_count;
+                }
+            }
+        }
+
+        hierarchy.set_recursive_count(self.room_id(), total);
+        self.imp().set_recursive_notification_count(total);
+        total
+    }
+
+    /// Update the recursive notification count and notify.
+    pub(crate) fn update_recursive_notification_count(&self) {
+        if !self.is_space() {
+            return;
+        }
+
+        let count = self.calculate_recursive_notification_count();
+        self.imp().set_recursive_notification_count(count);
+    }
+
+    /// Propagate a notification count delta up to all parent spaces.
+    /// Uses the centralized hierarchy for efficient traversal.
+    fn propagate_notification_delta(&self, delta: i64) {
+        let Some(session) = self.session() else {
+            return;
+        };
+
+        let hierarchy = session.space_hierarchy();
+        let changed = hierarchy.propagate_delta(self.room_id(), delta);
+
+        // Update GObject property projections for affected spaces.
+        let room_list = session.room_list();
+        for space_id in changed {
+            if let Some(space) = room_list.get(&space_id)
+                && let Some(count) = hierarchy.cached_recursive_count(&space_id)
+            {
+                space.imp().set_recursive_notification_count(count);
+            }
+        }
+    }
+
+    /// Load space relationships from Matrix state events.
+    /// Only loads for joined rooms to avoid 403 errors on rooms
+    /// where we don't have permission to view state.
+    pub(crate) fn load_space_relationships(&self) {
+        use ruma::events::space::{child::SpaceChildEventContent, parent::SpaceParentEventContent};
+
+        let matrix_room = self.matrix_room().clone();
+
+        // Skip rooms we haven't joined — state events aren't accessible.
+        if matrix_room.state() != RoomState::Joined {
+            return;
+        }
+
+        let room_id = matrix_room.room_id().to_owned();
+        let is_space = matrix_room.is_space();
+
+        spawn!(clone!(
+            #[weak(rename_to = room)]
+            self,
+            async move {
+                let handle = spawn_tokio!(async move {
+                    // Load space children if this is a space
+                    let child_room_ids = if is_space {
+                        match matrix_room
+                            .get_state_events_static::<SpaceChildEventContent>()
+                            .await
+                        {
+                            Ok(events) => events
+                                .into_iter()
+                                .filter_map(|raw_event| {
+                                    raw_event
+                                        .deserialize()
+                                        .ok()
+                                        .map(|event| event.state_key().to_owned())
+                                })
+                                .collect(),
+                            Err(error) => {
+                                warn!("Failed to load space children for {room_id}: {error}");
+                                Vec::new()
+                            }
+                        }
+                    } else {
+                        Vec::new()
+                    };
+
+                    // Load space parents for all rooms
+                    let parent_space_ids = match matrix_room
+                        .get_state_events_static::<SpaceParentEventContent>()
+                        .await
+                    {
+                        Ok(events) => events
+                            .into_iter()
+                            .filter_map(|raw_event| {
+                                raw_event
+                                    .deserialize()
+                                    .ok()
+                                    .map(|event| event.state_key().to_owned())
+                            })
+                            .collect(),
+                        Err(error) => {
+                            warn!("Failed to load space parents for {room_id}: {error}");
+                            Vec::new()
+                        }
+                    };
+
+                    (child_room_ids, parent_space_ids)
+                });
+
+                let Ok((child_room_ids, parent_space_ids)) = handle.await else {
+                    return;
+                };
+
+                let Some(session) = room.session() else {
+                    return;
+                };
+                let room_list = session.room_list();
+                let this_room_id = room.room_id().to_owned();
+
+                // Add children and establish parent relationship on the child side
+                for child_id in child_room_ids {
+                    room.add_child_room(&child_id);
+                    if let Some(child_room) = room_list.get(&child_id) {
+                        child_room.add_parent_space(&this_room_id);
+                    }
+                }
+
+                // Add parents and establish child relationship on the parent side
+                for parent_id in parent_space_ids {
+                    room.add_parent_space(&parent_id);
+                    if let Some(parent_space) = room_list.get(&parent_id) {
+                        parent_space.add_child_room(&this_room_id);
+                    }
+                }
+
+                // If this is a space, calculate its initial recursive notification count
+                if room.is_space() {
+                    room.update_recursive_notification_count();
+                }
+
+                // Schedule a debounced filter re-evaluation. Only the
+                // first call per idle cycle actually registers the callback;
+                // subsequent calls see the pending flag and skip.
+                let hierarchy = session.space_hierarchy();
+                if !hierarchy.filter_notify_pending() {
+                    hierarchy.set_filter_notify_pending(true);
+                    let hierarchy = hierarchy.clone();
+                    let item_list = session.sidebar_list_model().item_list();
+                    glib::idle_add_local_once(move || {
+                        hierarchy.set_filter_notify_pending(false);
+                        item_list.notify_current_space_changed();
+                    });
+                }
+            }
+        ));
+    }
+
+    /// Load suggested (unjoined) rooms from this space's hierarchy.
+    /// Results are cached for 5 minutes to avoid redundant HTTP requests.
+    pub(crate) fn load_suggested_rooms(&self) {
+        use std::time::Duration;
+
+        if !self.is_space() {
+            return;
+        }
+
+        let Some(session) = self.session() else {
+            return;
+        };
+
+        // Skip if fetched recently (5 minute TTL).
+        let ttl = Duration::from_secs(300);
+        if session
+            .space_hierarchy()
+            .suggested_rooms(self.room_id(), ttl)
+            .is_some()
+        {
+            return;
+        }
+
+        let matrix_room = self.matrix_room().clone();
+        let room_id = matrix_room.room_id().to_owned();
+
+        spawn!(clone!(
+            #[weak(rename_to = room)]
+            self,
+            async move {
+                let handle = spawn_tokio!(async move {
+                    let request = get_hierarchy::v1::Request::new(room_id.clone());
+                    matrix_room.client().send(request).await
+                });
+
+                let Ok(result) = handle.await else {
+                    return;
+                };
+
+                match result {
+                    Ok(response) => {
+                        let Some(session) = room.session() else {
+                            return;
+                        };
+                        let room_list = session.room_list();
+
+                        let unjoined: Vec<_> = response
+                            .rooms
+                            .into_iter()
+                            .filter(|chunk| room_list.get(&chunk.summary.room_id).is_none())
+                            .collect();
+
+                        session
+                            .space_hierarchy()
+                            .set_suggested_rooms(room.room_id(), unjoined);
+                    }
+                    Err(error) => {
+                        warn!(
+                            "Failed to load space hierarchy for {}: {error}",
+                            room.room_id()
+                        );
+                    }
+                }
+            }
+        ));
+    }
+
+    /// Link this room to a space by sending the necessary state events.
+    pub(crate) async fn link_to_space(&self, space_id: &RoomId) -> MatrixResult<()> {
+        use ruma::events::space::{child::SpaceChildEventContent, parent::SpaceParentEventContent};
+
+        let session = self.session().expect("Room has no session");
+        let room_list = session.room_list();
+        let this_room_id = self.room_id();
+
+        // Send m.space.parent event in this room
+        let parent_content = SpaceParentEventContent::new(vec![]);
+        self.matrix_room()
+            .send_state_event_for_key(space_id, parent_content)
+            .await?;
+
+        // Send m.space.child event in the space room
+        if let Some(space) = room_list.get(space_id) {
+            let child_content = SpaceChildEventContent::new(vec![]);
+            space
+                .matrix_room()
+                .send_state_event_for_key(this_room_id, child_content)
+                .await?;
+
+            // Update local state
+            self.add_parent_space(space_id);
+            space.add_child_room(this_room_id);
+        }
+
+        Ok(())
+    }
+
+    /// Unlink this room from a space by removing the state events.
+    pub(crate) async fn unlink_from_space(&self, space_id: &RoomId) -> MatrixResult<()> {
+        use ruma::events::space::{child::SpaceChildEventContent, parent::SpaceParentEventContent};
+
+        let session = self.session().expect("Room has no session");
+        let room_list = session.room_list();
+        let this_room_id = self.room_id();
+
+        // Remove m.space.parent event from this room (send empty content)
+        let empty_parent = SpaceParentEventContent::new(vec![]);
+        self.matrix_room()
+            .send_state_event_for_key(space_id, empty_parent)
+            .await?;
+
+        // Remove m.space.child event from the space room (send empty content)
+        if let Some(space) = room_list.get(space_id) {
+            let empty_child = SpaceChildEventContent::new(vec![]);
+            space
+                .matrix_room()
+                .send_state_event_for_key(this_room_id, empty_child)
+                .await?;
+
+            // Update local state
+            session
+                .space_hierarchy()
+                .remove_edge(space_id, this_room_id);
+        }
+
+        Ok(())
     }
 }
 

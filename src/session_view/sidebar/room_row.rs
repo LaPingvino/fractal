@@ -12,6 +12,8 @@ use crate::{
 };
 
 mod imp {
+    use std::cell::RefCell;
+
     use glib::subclass::InitializingObject;
 
     use super::*;
@@ -30,6 +32,7 @@ mod imp {
         display_name: TemplateChild<gtk::Label>,
         #[template_child]
         notification_count: TemplateChild<gtk::Label>,
+        space_icon: RefCell<Option<gtk::Image>>,
         /// The room represented by this row.
         #[property(get, set = Self::set_room, explicit_notify, nullable)]
         room: BoundObject<Room>,
@@ -116,6 +119,15 @@ mod imp {
                         imp.update_accessibility_label();
                     }
                 ));
+                let space_handler = room.connect_is_space_notify(clone!(
+                    #[weak(rename_to = imp)]
+                    self,
+                    move |_| {
+                        imp.update_space_icon();
+                        imp.update_notification_count_label();
+                        imp.update_accessibility_label();
+                    }
+                ));
                 let name_handler = room.connect_display_name_notify(clone!(
                     #[weak(rename_to = imp)]
                     self,
@@ -127,9 +139,19 @@ mod imp {
                     #[weak(rename_to = imp)]
                     self,
                     move |_| {
+                        imp.update_notification_count_label();
                         imp.update_accessibility_label();
                     }
                 ));
+                let recursive_notifications_count_handler = room
+                    .connect_recursive_notification_count_notify(clone!(
+                        #[weak(rename_to = imp)]
+                        self,
+                        move |_| {
+                            imp.update_notification_count_label();
+                            imp.update_accessibility_label();
+                        }
+                    ));
                 let category_handler = room.connect_category_notify(clone!(
                     #[weak(rename_to = imp)]
                     self,
@@ -143,8 +165,10 @@ mod imp {
                     vec![
                         highlight_handler,
                         direct_handler,
+                        space_handler,
                         name_handler,
                         notifications_count_handler,
+                        recursive_notifications_count_handler,
                         category_handler,
                     ],
                 );
@@ -155,6 +179,8 @@ mod imp {
             self.update_display_name();
             self.update_highlight();
             self.update_room_icon();
+            self.update_space_icon();
+            self.update_notification_count_label();
             self.obj().notify_room();
         }
 
@@ -266,6 +292,44 @@ mod imp {
             }
         }
 
+        /// Update the icon showing whether a room is a space or not.
+        fn update_space_icon(&self) {
+            let is_space = self.room.obj().is_some_and(|room| room.is_space());
+
+            if is_space {
+                if self.space_icon.borrow().is_none() {
+                    let icon = gtk::Image::builder()
+                        .icon_name("folder-symbolic")
+                        .icon_size(gtk::IconSize::Normal)
+                        .css_classes(["dimmed"])
+                        .accessible_role(gtk::AccessibleRole::Presentation)
+                        .build();
+
+                    self.display_name_box.prepend(&icon);
+                    self.space_icon.replace(Some(icon));
+                }
+            } else if let Some(icon) = self.space_icon.take() {
+                self.display_name_box.remove(&icon);
+            }
+        }
+
+        /// Update the notification count label.
+        /// For spaces, show recursive count; for regular rooms, show normal
+        /// count.
+        fn update_notification_count_label(&self) {
+            let Some(room) = self.room.obj() else {
+                return;
+            };
+
+            let count = if room.is_space() {
+                room.recursive_notification_count()
+            } else {
+                room.notification_count()
+            };
+
+            self.notification_count.set_label(&count.to_string());
+        }
+
         /// Update the accessibility label of this row.
         fn update_accessibility_label(&self) {
             let Some(parent) = self.obj().parent() else {
@@ -280,43 +344,77 @@ mod imp {
                 return String::new();
             };
 
-            let name = if room.is_call() {
-                gettext_f(
-                    // Translators: Do NOT translate the content between '{' and '}', this is a
-                    // variable name. Presented to screen readers for "call rooms".
-                    // A "call room" is a room where an audio or video call is always active,
-                    // that users can join and leave at any time.
-                    "{name} (call room)",
-                    &[("name", &room.display_name())],
-                )
+            let kind = if room.is_call() {
+                RowKind::Call
+            } else if room.is_space() {
+                RowKind::Space
             } else if room.is_direct() {
-                gettext_f(
-                    // Translators: Do NOT translate the content between '{' and '}', this is a
-                    // variable name. Presented to screen readers when a room is a direct chat with
-                    // another user.
-                    "Direct chat with {name}",
-                    &[("name", &room.display_name())],
-                )
+                RowKind::Direct
             } else {
-                room.display_name()
+                RowKind::Plain
             };
-
-            if room.notification_count() > 0 {
-                let count = ngettext_f(
-                    // Translators: Do NOT translate the content between '{' and '}', this is a
-                    // variable name. Presented to screen readers when a room has notifications
-                    // for unread messages.
-                    "1 notification",
-                    "{count} notifications",
-                    room.notification_count() as u32,
-                    &[("count", &room.notification_count().to_string())],
-                );
-                format!("{name} {count}")
+            // A space shows the notifications of the rooms in it: say the same.
+            let notifications = if room.is_space() {
+                room.recursive_notification_count()
             } else {
-                name
-            }
+                room.notification_count()
+            };
+            accessible_label_for(&room.display_name(), kind, notifications)
         }
     }
+}
+
+/// The kind of room a row stands for, as a screen reader names it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RowKind {
+    Call,
+    Space,
+    Direct,
+    Plain,
+}
+
+/// What a screen reader hears for a room row: the room's name, its kind, and
+/// its notifications (for a space, those of the rooms in it).
+fn accessible_label_for(name: &str, kind: RowKind, notifications: u64) -> String {
+    let name = match kind {
+        RowKind::Call => gettext_f(
+            // Translators: Do NOT translate the content between '{' and '}', this is a
+            // variable name. Presented to screen readers for "call rooms".
+            // A "call room" is a room where an audio or video call is always active,
+            // that users can join and leave at any time.
+            "{name} (call room)",
+            &[("name", name)],
+        ),
+        RowKind::Space => gettext_f(
+            // Translators: Do NOT translate the content between '{' and '}', this is a
+            // variable name. Presented to screen readers for a space, a room that groups
+            // other rooms.
+            "{name} (space)",
+            &[("name", name)],
+        ),
+        RowKind::Direct => gettext_f(
+            // Translators: Do NOT translate the content between '{' and '}', this is a
+            // variable name. Presented to screen readers when a room is a direct chat with
+            // another user.
+            "Direct chat with {name}",
+            &[("name", name)],
+        ),
+        RowKind::Plain => name.to_owned(),
+    };
+
+    if notifications == 0 {
+        return name;
+    }
+    let count = ngettext_f(
+        // Translators: Do NOT translate the content between '{' and '}', this is a
+        // variable name. Presented to screen readers when a room has notifications
+        // for unread messages.
+        "1 notification",
+        "{count} notifications",
+        u32::try_from(notifications).unwrap_or(u32::MAX),
+        &[("count", &notifications.to_string())],
+    );
+    format!("{name} {count}")
 }
 
 glib::wrapper! {
@@ -335,5 +433,47 @@ impl SidebarRoomRow {
 impl Default for SidebarRoomRow {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{RowKind, accessible_label_for};
+
+    #[test]
+    fn plain_room_is_its_name() {
+        assert_eq!(accessible_label_for("Lobby", RowKind::Plain, 0), "Lobby");
+    }
+
+    #[test]
+    fn space_says_it_is_one() {
+        assert_eq!(
+            accessible_label_for("Games", RowKind::Space, 0),
+            "Games (space)"
+        );
+    }
+
+    #[test]
+    fn kinds_are_named() {
+        assert_eq!(
+            accessible_label_for("Ana", RowKind::Direct, 0),
+            "Direct chat with Ana"
+        );
+        assert_eq!(
+            accessible_label_for("Standup", RowKind::Call, 0),
+            "Standup (call room)"
+        );
+    }
+
+    #[test]
+    fn notifications_are_counted() {
+        assert_eq!(
+            accessible_label_for("Lobby", RowKind::Plain, 1),
+            "Lobby 1 notification"
+        );
+        assert_eq!(
+            accessible_label_for("Games", RowKind::Space, 3),
+            "Games (space) 3 notifications"
+        );
     }
 }
