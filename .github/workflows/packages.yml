@@ -6,7 +6,7 @@ name: Packages
 on:
   push:
     branches: [build]
-    paths-ignore: ["README.md"]
+    paths-ignore: ["README.md", "packaging/debian/**", "packaging/fedora/**", ".github/workflows/debian.yml", ".github/workflows/fedora.yml"]
   workflow_dispatch:
     inputs:
       ref:

@@ -78,6 +78,24 @@ Download `fractal-spaces-x86_64.pkg.tar.zst` from the same release page and run:
 It replaces the regular `fractal` package (both use the same program name). To build it yourself:
 `packaging/arch/PKGBUILD` on this branch, with `makepkg -si`.
 
+### On Fedora, as a native package
+
+Download `fractal-spaces-x86_64.rpm` from the same release page and run:
+
+    sudo dnf install ./fractal-spaces-x86_64.rpm
+
+It needs a current Fedora (GTK 4.20 or newer). The spec is `packaging/fedora/fractal-spaces.spec`.
+
+### On Debian or Ubuntu, as a native package
+
+Only **Debian testing** and **Ubuntu's development release** have new enough GTK (4.20) and
+libadwaita (1.8). Debian 13 and the released Ubuntus are too old: use the Flatpak there.
+Download `fractal-spaces-debian-amd64.deb` or `fractal-spaces-ubuntu-amd64.deb` and run:
+
+    sudo apt install ./fractal-spaces-debian-amd64.deb
+
+The build script is `packaging/debian/build-deb.sh`.
+
 ## Update
 
 Download the file again and run the same install command. A new build is made every night and whenever

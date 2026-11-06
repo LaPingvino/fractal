@@ -1,0 +1,47 @@
+# The .deb packages of the spaces work (F7): Debian testing and Ubuntu's
+# development series (the releases whose GTK and libadwaita are new enough),
+# published on the spaces-latest release. Its own workflow and concurrency, so
+# a push doesn't cancel the Arch or Fedora builds.
+name: Debian
+
+on:
+  push:
+    branches: [build]
+    paths: ["packaging/debian/**", ".github/workflows/debian.yml"]
+  workflow_dispatch:
+  schedule:
+    - cron: "41 4 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: debian
+  cancel-in-progress: true
+
+jobs:
+  deb:
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["debian:testing", "ubuntu:devel"]
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    steps:
+      - name: Tools
+        run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+      - uses: actions/checkout@v4
+        with:
+          ref: build
+      - name: Build the package
+        env:
+          REPO: ${{ github.repository }}
+        run: packaging/debian/build-deb.sh "$PWD"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apt-get install -y --no-install-recommends gh || { curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /usr/share/keyrings/gh.gpg && echo "deb [signed-by=/usr/share/keyrings/gh.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/gh.list && apt-get update && apt-get install -y gh; }
+          git config --global --add safe.directory "$PWD"
+          gh release view spaces-latest -R "${{ github.repository }}" >/dev/null 2>&1 || gh release create spaces-latest -R "${{ github.repository }}" --prerelease --title "Fractal with spaces (latest build)" --notes "Builds of the spaces work. Install: see the README on the build branch." --target build
+          gh release upload spaces-latest fractal-spaces-*.deb -R "${{ github.repository }}" --clobber
