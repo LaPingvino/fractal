@@ -13,12 +13,16 @@ use crate::session::{RoomCategory, TargetRoomCategory};
 #[enum_type(name = "SidebarSectionName")]
 #[serde(rename_all = "kebab-case")]
 pub enum SidebarSectionName {
+    /// The section for spaces.
+    Spaces,
     /// The section for verification requests.
     VerificationRequest,
     /// The section for invite requests.
     InviteRequest,
     /// The section for room invites.
     Invited,
+    /// The section for suggested rooms (unjoined rooms in current space).
+    Suggested,
     /// The section for favorite rooms.
     Favorite,
     /// The section for joined rooms without a tag.
@@ -34,13 +38,14 @@ impl SidebarSectionName {
     /// Convert the given `RoomCategory` to a `SidebarSectionName`, if possible.
     pub(crate) fn from_room_category(category: RoomCategory) -> Option<Self> {
         let name = match category {
+            RoomCategory::Space => Self::Spaces,
             RoomCategory::Knocked => Self::InviteRequest,
             RoomCategory::Invited => Self::Invited,
             RoomCategory::Favorite => Self::Favorite,
             RoomCategory::Normal => Self::Normal,
             RoomCategory::LowPriority => Self::LowPriority,
             RoomCategory::Left => Self::Left,
-            RoomCategory::Outdated | RoomCategory::Space | RoomCategory::Ignored => return None,
+            RoomCategory::Outdated | RoomCategory::Ignored => return None,
         };
 
         Some(name)
@@ -49,7 +54,8 @@ impl SidebarSectionName {
     /// Convert this `SidebarSectionName` to a `RoomCategory`, if possible.
     pub(crate) fn into_room_category(self) -> Option<RoomCategory> {
         let category = match self {
-            Self::VerificationRequest => return None,
+            Self::Spaces => RoomCategory::Space,
+            Self::VerificationRequest | Self::Suggested => return None,
             Self::InviteRequest => RoomCategory::Knocked,
             Self::Invited => RoomCategory::Invited,
             Self::Favorite => RoomCategory::Favorite,
@@ -65,7 +71,13 @@ impl SidebarSectionName {
     /// possible.
     pub(crate) fn into_target_room_category(self) -> Option<TargetRoomCategory> {
         let category = match self {
-            Self::VerificationRequest | Self::InviteRequest | Self::Invited => return None,
+            Self::Spaces
+            | Self::VerificationRequest
+            | Self::InviteRequest
+            | Self::Invited
+            | Self::Suggested => {
+                return None;
+            }
             Self::Favorite => TargetRoomCategory::Favorite,
             Self::Normal => TargetRoomCategory::Normal,
             Self::LowPriority => TargetRoomCategory::LowPriority,
@@ -79,9 +91,11 @@ impl SidebarSectionName {
 impl fmt::Display for SidebarSectionName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let label = match self {
+            SidebarSectionName::Spaces => gettext("Spaces"),
             SidebarSectionName::VerificationRequest => gettext("Verifications"),
             SidebarSectionName::InviteRequest => gettext("Invite Requests"),
             SidebarSectionName::Invited => gettext("Invited"),
+            SidebarSectionName::Suggested => gettext("Suggested"),
             SidebarSectionName::Favorite => gettext("Favorites"),
             SidebarSectionName::Normal => gettext("Rooms"),
             SidebarSectionName::LowPriority => gettext("Low Priority"),

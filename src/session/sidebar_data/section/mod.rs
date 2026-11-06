@@ -6,6 +6,7 @@ mod room_category_filter;
 pub use self::name::SidebarSectionName;
 use self::room_category_filter::RoomCategoryFilter;
 use crate::{
+    components::PillSourceExt,
     session::{
         Room, RoomCategory, RoomList, SessionSettings, VerificationList, room::HighlightFlags,
     },
@@ -29,7 +30,9 @@ mod imp {
         /// The inner model of this section.
         inner_model: OnceCell<gio::ListModel>,
         /// The filter of this section.
-        filter: RoomCategoryFilter,
+        pub(super) filter: RoomCategoryFilter,
+        /// The current space being viewed (None = root level).
+        pub(super) current_space: std::cell::RefCell<Option<Room>>,
         /// The name of this section.
         #[property(get, set = Self::set_name, construct_only, builder(SidebarSectionName::default()))]
         name: Cell<SidebarSectionName>,
@@ -226,6 +229,13 @@ mod imp {
 
         /// The display name of this section.
         fn display_name(&self) -> String {
+            // For Spaces section, show current space name if inside a space
+            if self.name.get() == SidebarSectionName::Spaces
+                && let Some(space) = self.current_space.borrow().as_ref()
+            {
+                return space.display_name();
+            }
+
             self.name.get().to_string()
         }
 
@@ -282,6 +292,63 @@ impl SidebarSection {
             .property("name", name)
             .property("model", model)
             .build()
+    }
+
+    /// Notify this section that the current space has changed.
+    pub(crate) fn notify_current_space_changed(&self) {
+        // Only sections with room categories affected by space filtering
+        // need re-evaluation. Skip sections that show the same content
+        // regardless of which space is selected.
+        match self.name() {
+            SidebarSectionName::Favorite
+            | SidebarSectionName::Normal
+            | SidebarSectionName::LowPriority
+            | SidebarSectionName::Spaces => {}
+            _ => return,
+        }
+
+        // Get the current space from the global sidebar state
+        let current_space = if let Some(room_list) = self.model().downcast_ref::<RoomList>() {
+            if let Some(session) = room_list.session() {
+                let sidebar = session.sidebar_list_model();
+                sidebar.current_space()
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Update the section's current space
+        self.imp().current_space.replace(current_space.clone());
+
+        // Pass it to the filter
+        self.imp()
+            .filter
+            .imp()
+            .current_space
+            .replace(current_space.clone());
+
+        // Update display name for Spaces section
+        if self.name() == SidebarSectionName::Spaces {
+            self.notify_display_name();
+        }
+
+        // Trigger the filter to re-evaluate all items
+        self.imp().filter.changed(gtk::FilterChange::Different);
+    }
+
+    /// Notify this section that the search state has changed.
+    pub(crate) fn notify_search_changed(&self, is_search_active: bool) {
+        // Update the filter's search state
+        self.imp()
+            .filter
+            .imp()
+            .is_search_active
+            .set(is_search_active);
+
+        // Trigger the filter to re-evaluate all items
+        self.imp().filter.changed(gtk::FilterChange::Different);
     }
 
     /// Whether this section should be shown for the drag-n-drop of a room with

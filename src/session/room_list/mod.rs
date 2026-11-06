@@ -289,8 +289,32 @@ mod imp {
 
             if !new_rooms.is_empty() {
                 let added = new_rooms.len();
+
+                // Separate spaces from non-spaces so we can prioritize loading.
+                let mut spaces = Vec::new();
+                let mut non_spaces = Vec::new();
+                for room in new_rooms.values() {
+                    if room.is_space() {
+                        spaces.push(room.clone());
+                    } else {
+                        non_spaces.push(room.clone());
+                    }
+                }
+
                 self.list.borrow_mut().extend(new_rooms);
                 self.items_added(added);
+
+                // Load space relationships with spaces first (higher priority)
+                // so the hierarchy is established before child rooms look up
+                // their parents.
+                for room in spaces {
+                    room.load_space_relationships();
+                }
+                glib::idle_add_local_once(move || {
+                    for room in non_spaces {
+                        room.load_space_relationships();
+                    }
+                });
             }
         }
 

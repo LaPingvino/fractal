@@ -82,6 +82,26 @@ impl RoomListMetainfo {
             rooms.insert(room_id, room);
         }
 
+        // Load space relationships: spaces first so the hierarchy is
+        // established before child rooms look up their parents.
+        let mut spaces = Vec::new();
+        let mut non_spaces = Vec::new();
+        for room in rooms.values() {
+            if room.is_space() {
+                spaces.push(room.clone());
+            } else {
+                non_spaces.push(room.clone());
+            }
+        }
+        for room in spaces {
+            room.load_space_relationships();
+        }
+        glib::idle_add_local_once(move || {
+            for room in non_spaces {
+                room.load_space_relationships();
+            }
+        });
+
         rooms
     }
 

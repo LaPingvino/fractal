@@ -23,12 +23,20 @@ mod imp {
         /// Whether the string filter is active.
         #[property(get)]
         is_filtered: Cell<bool>,
+        /// Whether search is currently active (disables space filtering).
+        #[property(get, set = Self::set_is_search_active, explicit_notify)]
+        is_search_active: Cell<bool>,
         /// The selection model.
         #[property(get)]
         selection_model: FixedSelection,
         /// The selected item, if it has signal handlers.
         selected_item: BoundObjectWeakRef<glib::Object>,
         item_type_filter: gtk::CustomFilter,
+        /// The current space being viewed (None = root level).
+        #[property(get = Self::current_space, set = Self::set_current_space, explicit_notify, nullable)]
+        current_space: std::cell::RefCell<Option<Room>>,
+        /// Navigation history stack for back button.
+        navigation_stack: std::cell::RefCell<Vec<Option<Room>>>,
     }
 
     #[glib::object_subclass]
@@ -126,6 +134,70 @@ mod imp {
             self.obj().notify_is_filtered();
             self.item_list().inhibit_expanded(is_filtered);
             self.item_type_filter.changed(gtk::FilterChange::Different);
+
+            // Update search active state
+            self.set_is_search_active(is_filtered);
+        }
+
+        /// Set whether search is currently active.
+        fn set_is_search_active(&self, active: bool) {
+            if self.is_search_active.get() == active {
+                return;
+            }
+
+            self.is_search_active.set(active);
+            self.obj().notify_is_search_active();
+
+            // Notify all sections that search state changed
+            self.item_list().notify_search_changed(active);
+        }
+
+        /// Get the current space being viewed.
+        fn current_space(&self) -> Option<Room> {
+            self.current_space.borrow().clone()
+        }
+
+        /// Set the current space being viewed.
+        fn set_current_space(&self, space: Option<Room>) {
+            let old_space = self.current_space.borrow().clone();
+
+            if old_space == space {
+                return;
+            }
+
+            // Push to navigation stack if navigating forward (into a space)
+            // Don't push if going back (space is None and we were in a space)
+            if space.is_some() {
+                self.navigation_stack.borrow_mut().push(old_space);
+            }
+
+            if let Some(s) = &space {
+                s.load_suggested_rooms();
+            }
+
+            self.current_space.replace(space);
+            self.obj().notify_current_space();
+
+            // Notify all sections and update back button visibility
+            if let Some(item_list) = self.item_list.get() {
+                item_list.notify_current_space_changed();
+            }
+        }
+
+        /// Go back to the previous space in the navigation history.
+        pub(super) fn go_back(&self) {
+            let previous = self.navigation_stack.borrow_mut().pop();
+
+            if let Some(prev_space) = previous {
+                // Set the space without pushing to stack again
+                self.current_space.replace(prev_space.clone());
+                self.obj().notify_current_space();
+
+                // Notify all sections and update back button visibility
+                if let Some(item_list) = self.item_list.get() {
+                    item_list.notify_current_space_changed();
+                }
+            }
         }
     }
 }
@@ -143,5 +215,10 @@ impl SidebarListModel {
         glib::Object::builder()
             .property("item-list", item_list)
             .build()
+    }
+
+    /// Go back to the previous space in the navigation history.
+    pub fn go_back(&self) {
+        self.imp().go_back();
     }
 }
