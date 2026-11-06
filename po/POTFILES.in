@@ -110,6 +110,7 @@ src/session/sidebar_data/section/name.rs
 src/session/user_sessions_list/user_session.rs
 src/session_list/mod.rs
 src/session_view/content.blp
+src/session_view/content.rs
 src/session_view/create_direct_chat_dialog/mod.blp
 src/session_view/create_direct_chat_dialog/mod.rs
 src/session_view/create_room_dialog.blp
@@ -195,6 +196,7 @@ src/session_view/room_history/state/group_row.rs
 src/session_view/room_history/title.blp
 src/session_view/room_history/typing_row.rs
 src/session_view/room_history/verification_info_bar.rs
+src/session_view/sidebar/icon_item_row.rs
 src/session_view/sidebar/mod.blp
 src/session_view/sidebar/mod.rs
 src/session_view/sidebar/room_row.rs

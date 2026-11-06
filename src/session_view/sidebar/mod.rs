@@ -21,8 +21,9 @@ use crate::{
     account_switcher::AccountSwitcherButton,
     components::OfflineBanner,
     session::{
-        CryptoIdentityState, RecoveryState, RoomCategory, Session, SessionVerificationState,
-        SidebarListModel, SidebarSection, TargetRoomCategory, User,
+        CryptoIdentityState, RecoveryState, Room, RoomCategory, Session, SessionVerificationState,
+        SidebarIconItem, SidebarIconItemType, SidebarListModel, SidebarSection, TargetRoomCategory,
+        User,
     },
     utils::FixedSelection,
 };
@@ -126,20 +127,15 @@ mod imp {
             ));
             self.listview.set_factory(Some(&factory));
 
-            self.listview.connect_activate(move |listview, pos| {
-                let Some(model) = listview.model().and_downcast::<FixedSelection>() else {
-                    return;
-                };
-                let Some(item) = model.item(pos) else {
-                    return;
-                };
-
-                if let Some(section) = item.downcast_ref::<SidebarSection>() {
-                    section.set_is_expanded(!section.is_expanded());
-                } else {
-                    model.set_selected(pos);
+            self.listview.connect_activate(clone!(
+                #[weak]
+                obj,
+                move |listview, pos| {
+                    if let Some(model) = listview.model().and_downcast::<FixedSelection>() {
+                        obj.activate_item(&model, pos);
+                    }
                 }
-            });
+            ));
 
             obj.property_expression("list-model")
                 .chain_property::<SidebarListModel>("selection-model")
@@ -279,6 +275,16 @@ mod imp {
                     self,
                     move |list| {
                         imp.update_room_stack(list);
+                    }
+                ));
+
+                // Initialize to root view (no space selected) - defer to ensure sections are
+                // ready
+                glib::idle_add_local_once(clone!(
+                    #[weak]
+                    list_model,
+                    move || {
+                        list_model.set_current_space(None::<Room>);
                     }
                 ));
             }
@@ -475,6 +481,94 @@ glib::wrapper! {
 
 #[gtk::template_callbacks]
 impl Sidebar {
+    /// Handle the activation of the item at the given position: expand or
+    /// collapse a section, go back or open the space settings, navigate into
+    /// a space or to a room's parent space, or select the item.
+    fn activate_item(&self, model: &FixedSelection, pos: u32) {
+        let Some(item) = model.item(pos) else {
+            return;
+        };
+
+        // Handle section expand/collapse
+        if let Some(section) = item.downcast_ref::<SidebarSection>() {
+            section.set_is_expanded(!section.is_expanded());
+            return;
+        }
+
+        // Handle Back button for space navigation
+        if let Some(icon_item) = item.downcast_ref::<SidebarIconItem>() {
+            if icon_item.item_type() == SidebarIconItemType::Back {
+                if let Some(list_model) = self.list_model() {
+                    list_model.go_back();
+                }
+                return;
+            }
+
+            // Handle Space Settings button
+            if icon_item.item_type() == SidebarIconItemType::SpaceSettings {
+                if let Some(list_model) = self.list_model()
+                    && let Some(space) = list_model.current_space()
+                {
+                    list_model.go_back();
+
+                    if let Some(session_view) = self
+                        .ancestor(crate::session_view::SessionView::static_type())
+                        .and_downcast::<crate::session_view::SessionView>()
+                    {
+                        session_view.select_room(space.clone());
+                    }
+                }
+                return;
+            }
+        }
+
+        // Handle room clicks - navigate into spaces or open rooms
+        if let Some(room) = item.downcast_ref::<Room>() {
+            let was_search_active = self.list_model().is_some_and(|m| m.is_search_active());
+
+            // If search is active, clear it first
+            if was_search_active {
+                // Clear search by setting search bar to inactive
+                self.imp().room_search.set_search_mode(false);
+            }
+
+            if room.is_space() {
+                if let Some(list_model) = self.list_model() {
+                    list_model.set_current_space(Some(room.clone()));
+                }
+                return;
+            }
+
+            // For regular rooms, navigate to their parent space if they have one
+            if let Some(parent_id) = room.parent_spaces().first() {
+                if let Some(session) = self.user().as_ref().map(User::session)
+                    && let Some(parent) = session.room_list().get(parent_id)
+                    && let Some(list_model) = self.list_model()
+                {
+                    list_model.set_current_space(Some(parent.clone()));
+                }
+            } else {
+                // Room is orphaned, navigate to root
+                if let Some(list_model) = self.list_model() {
+                    list_model.set_current_space(None::<Room>);
+                }
+            }
+
+            // If we navigated from search, select the room after navigation
+            if was_search_active
+                && let Some(session_view) = self
+                    .ancestor(crate::session_view::SessionView::static_type())
+                    .and_downcast::<crate::session_view::SessionView>()
+            {
+                session_view.select_room(room.clone());
+                return;
+            }
+        }
+
+        // Default: select the item (for regular rooms and other items)
+        model.set_selected(pos);
+    }
+
     pub fn new() -> Self {
         glib::Object::new()
     }
