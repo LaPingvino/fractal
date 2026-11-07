@@ -133,6 +133,8 @@ checked with Fractal's own `cargo deny` configuration.
 |---|---|---|
 | [RUSTSEC-2026-0414](https://rustsec.org/advisories/RUSTSEC-2026-0414.html): exponential event growth with wikilinks enabled | pulldown-cmark 0.13.4 | 0.13.6 |
 | [RUSTSEC-2026-0433](https://rustsec.org/advisories/RUSTSEC-2026-0433.html): quadratic parsing of nested image wikilinks | pulldown-cmark 0.13.4 | 0.13.6 |
+| [RUSTSEC-2026-0445](https://rustsec.org/advisories/RUSTSEC-2026-0445.html): degraded secret zeroization (crypto dependencies' zeroize feature not enabled) | vodozemac 0.11.1 | 0.11.2 |
+| [RUSTSEC-2026-0451](https://rustsec.org/advisories/RUSTSEC-2026-0451.html): the Olm root key ratchet left its HKDF output in memory | vodozemac 0.11.1 | 0.11.2 |
 
 When Fractal takes these updates itself, the entries move out of this list.
 
