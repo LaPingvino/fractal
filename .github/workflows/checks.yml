@@ -22,10 +22,12 @@ jobs:
         with:
           ref: ${{ github.event.inputs.ref || 'spaces' }}
       - name: Fractal's pre-commit checks on its pinned nightly
+        # cargo-binstall comes prebuilt (as upstream's test job installs it): built from
+        # source on the pinned nightly it stopped compiling (E0308 in binstalk, 2026-11-10).
         run: |
           v=$(sed -n 's/^ *RUST_NIGHTLY_VERSION: "\(.*\)"/\1/p' .gitlab-ci.yml)
           docker run --rm -v "$PWD":/src -w /src "rustlang/rust:nightly-slim-$v" sh -c \
-            'apt-get update && apt-get install -y --no-install-recommends git && git config --global --add safe.directory /src && RUST_BACKTRACE=1 cargo run --manifest-path hooks/checks/Cargo.toml -- --verbose --force-install --cargo-binstall'
+            'apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates && curl -L --proto =https --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | sh && git config --global --add safe.directory /src && RUST_BACKTRACE=1 cargo run --manifest-path hooks/checks/Cargo.toml -- --verbose --force-install --cargo-binstall'
 
   flatpak-checks:
     runs-on: ubuntu-latest
